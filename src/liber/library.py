@@ -8,6 +8,15 @@ import shutil
 from pathlib import Path
 from typing import Optional
 
+from liber.bibtex import (
+    get_authors,
+    get_doi,
+    get_keywords,
+    get_title,
+    get_year,
+    parse_bib_file,
+    rewrite_key,
+)
 from liber.models import Paper
 
 _INDEX_FILE = ".liber_index.json"
@@ -90,37 +99,44 @@ class Library:
     def add(
         self,
         pdf_path: Path,
-        title: str,
-        year: int,
-        authors: list[str],
-        keywords: list[str],
-        doi: str = "",
+        bib_path: Path,
         citation_key: Optional[str] = None,
     ) -> Paper:
-        """Add a paper to the library.
+        """Add a paper to the library from a PDF and a BibTeX file.
 
-        Copies *pdf_path* into the library, writes a ``.bib`` file, and
-        records the paper in the index.
+        Copies *pdf_path* into the library, writes a ``.bib`` file with the
+        citation key updated to the author-year-title format (all other BibTeX
+        fields are preserved as-is), and records the paper in the index.
 
         Args:
             pdf_path: Path to the PDF file to import.
-            title: Full paper title.
-            year: Publication year (integer).
-            authors: List of author names (``"Last, First"`` or ``"First Last"``).
-            keywords: List of keyword strings.
-            doi: DOI string (optional).
+            bib_path: Path to an existing ``.bib`` file for the paper.
             citation_key: Override the auto-generated citation key (optional).
 
         Returns:
             The newly created :class:`Paper` instance.
 
         Raises:
-            FileNotFoundError: If *pdf_path* does not exist.
-            FileExistsError: If a paper with the same citation key already exists.
+            FileNotFoundError: If *pdf_path* or *bib_path* does not exist.
+            FileExistsError: If a paper with the same citation key already
+                exists in the library.
+            ValueError: If required BibTeX fields (title, year, author) are
+                missing or malformed.
         """
         pdf_path = Path(pdf_path).expanduser().resolve()
+        bib_path = Path(bib_path).expanduser().resolve()
         if not pdf_path.exists():
             raise FileNotFoundError(f"PDF not found: {pdf_path}")
+        if not bib_path.exists():
+            raise FileNotFoundError(f"BibTeX file not found: {bib_path}")
+
+        # Parse the bib file to extract metadata
+        fields = parse_bib_file(bib_path)
+        title = get_title(fields)
+        year = get_year(fields)
+        authors = get_authors(fields)
+        keywords = get_keywords(fields)
+        doi = get_doi(fields)
 
         key = citation_key or make_citation_key(authors, year, title)
 
@@ -137,7 +153,13 @@ class Library:
         dest_pdf = paper_dir / f"{key}.pdf"
         shutil.copy2(pdf_path, dest_pdf)
 
-        # Write bib file
+        # Write bib file: preserve original content, only update the key
+        original_bib_text = bib_path.read_text(encoding="utf-8")
+        new_bib_text = rewrite_key(original_bib_text, key)
+        dest_bib = paper_dir / f"{key}.bib"
+        dest_bib.write_text(new_bib_text, encoding="utf-8")
+
+        # Build Paper and update index
         paper = Paper(
             title=title,
             year=year,
@@ -146,10 +168,6 @@ class Library:
             doi=doi,
             citation_key=key,
         )
-        bib_path = paper_dir / f"{key}.bib"
-        bib_path.write_text(paper.to_bibtex(), encoding="utf-8")
-
-        # Update index
         papers.append(paper)
         self._write_index(papers)
 

@@ -51,17 +51,19 @@ liber --library-dir /path/to/lib init
 ### Add a paper
 
 ```bash
-liber add paper.pdf \
-    --title "Attention Is All You Need" \
-    --year 2017 \
-    --author "Vaswani, Ashish" \
-    --author "Shazeer, Noam" \
-    --keyword "transformers" \
-    --keyword "attention" \
-    --doi 10.48550/arXiv.1706.03762
+liber add paper.pdf paper.bib
 ```
 
-Use `--key <custom_key>` to override the auto-generated citation key.
+Metadata (title, year, authors, keywords, DOI) is extracted directly from the
+BibTeX file.  The citation key in the stored copy is rewritten to the
+author-year-title format; all other BibTeX fields are preserved unchanged.
+Papers without a DOI are added gracefully.
+
+Use `--key <custom_key>` to override the auto-generated citation key:
+
+```bash
+liber add paper.pdf paper.bib --key lecun2015deep
+```
 
 ### List all papers
 

@@ -75,26 +75,7 @@ def init_cmd(ctx: click.Context) -> None:
 
 @cli.command("add")
 @click.argument("pdf", type=click.Path(exists=True, dir_okay=False))
-@click.option("--title", "-t", required=True, help="Paper title.")
-@click.option(
-    "--year", "-y", required=True, type=int, help="Publication year (e.g. 2023)."
-)
-@click.option(
-    "--author",
-    "-a",
-    "authors",
-    multiple=True,
-    required=True,
-    help='Author name. Use "Last, First" format. Repeat for multiple authors.',
-)
-@click.option(
-    "--keyword",
-    "-k",
-    "keywords",
-    multiple=True,
-    help="Keyword. Repeat for multiple keywords.",
-)
-@click.option("--doi", default="", help="DOI of the paper (optional).")
+@click.argument("bib", type=click.Path(exists=True, dir_okay=False))
 @click.option(
     "--key",
     default=None,
@@ -104,45 +85,33 @@ def init_cmd(ctx: click.Context) -> None:
 def add_cmd(
     ctx: click.Context,
     pdf: str,
-    title: str,
-    year: int,
-    authors: tuple[str, ...],
-    keywords: tuple[str, ...],
-    doi: str,
+    bib: str,
     key: Optional[str],
 ) -> None:
     """Add a paper to the library.
 
     PDF is the path to the PDF file to import.
+    BIB is the path to the existing BibTeX file for the paper.
+
+    Metadata (title, year, authors, keywords, doi) is extracted from the bib
+    file.  The citation key is rewritten to the author-year-title format; all
+    other BibTeX fields are preserved unchanged.
 
     Example:
 
     \b
-        liber add paper.pdf \\
-            --title "Deep Learning" \\
-            --year 2015 \\
-            --author "LeCun, Yann" \\
-            --author "Bengio, Yoshua" \\
-            --author "Hinton, Geoffrey" \\
-            --keyword "deep learning" \\
-            --keyword "neural networks" \\
-            --doi 10.1038/nature14539
+        liber add paper.pdf paper.bib
+        liber add paper.pdf paper.bib --key lecun2015deep
     """
     lib = _get_library(ctx)
     lib.init()
     try:
         paper = lib.add(
             pdf_path=Path(pdf),
-            title=title,
-            year=year,
-            authors=list(authors),
-            keywords=list(keywords),
-            doi=doi,
+            bib_path=Path(bib),
             citation_key=key,
         )
-    except FileExistsError as exc:
-        raise click.ClickException(str(exc)) from exc
-    except FileNotFoundError as exc:
+    except (FileExistsError, FileNotFoundError, ValueError) as exc:
         raise click.ClickException(str(exc)) from exc
 
     click.echo(f"Added paper '{paper.citation_key}'.")

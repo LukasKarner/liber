@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import shutil
-import tempfile
 from pathlib import Path
 
 import pytest
 
 from liber.library import Library, make_citation_key
 from liber.models import Paper
+from tests.conftest import make_bib
 
 
 # ---------------------------------------------------------------------------
@@ -26,11 +25,20 @@ def tmp_lib(tmp_path: Path) -> Library:
 
 
 @pytest.fixture()
-def dummy_pdf(tmp_path: Path) -> Path:
-    """Return a path to a small dummy PDF file."""
-    pdf = tmp_path / "paper.pdf"
-    pdf.write_bytes(b"%PDF-1.4 dummy content")
-    return pdf
+def dummy_bib(tmp_path: Path) -> Path:
+    """Return a path to a minimal BibTeX file."""
+    bib = tmp_path / "paper.bib"
+    bib.write_text(
+        "@article{oldkey2015,\n"
+        "  title    = {Machine Learning},\n"
+        "  author   = {Smith, John},\n"
+        "  year     = {2023},\n"
+        "  keywords = {ml, artificial intelligence},\n"
+        "  doi      = {10.1/ml},\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    return bib
 
 
 # ---------------------------------------------------------------------------
@@ -132,88 +140,76 @@ class TestPaperBibtex:
 
 
 class TestLibraryAdd:
-    def test_add_creates_directory(self, tmp_lib: Library, dummy_pdf: Path):
-        paper = tmp_lib.add(
-            pdf_path=dummy_pdf,
-            title="Machine Learning",
-            year=2023,
-            authors=["Smith, John"],
-            keywords=["ml"],
-            doi="",
-        )
+    def test_add_creates_directory(self, tmp_lib: Library, dummy_pdf: Path, dummy_bib: Path):
+        paper = tmp_lib.add(pdf_path=dummy_pdf, bib_path=dummy_bib)
         assert (tmp_lib.library_dir / paper.citation_key).is_dir()
 
-    def test_add_creates_pdf(self, tmp_lib: Library, dummy_pdf: Path):
-        paper = tmp_lib.add(
-            pdf_path=dummy_pdf,
-            title="Machine Learning",
-            year=2023,
-            authors=["Smith, John"],
-            keywords=[],
-        )
+    def test_add_creates_pdf(self, tmp_lib: Library, dummy_pdf: Path, dummy_bib: Path):
+        paper = tmp_lib.add(pdf_path=dummy_pdf, bib_path=dummy_bib)
         assert (tmp_lib.library_dir / paper.citation_key / f"{paper.citation_key}.pdf").exists()
 
-    def test_add_creates_bib(self, tmp_lib: Library, dummy_pdf: Path):
-        paper = tmp_lib.add(
-            pdf_path=dummy_pdf,
-            title="Machine Learning",
-            year=2023,
-            authors=["Smith, John"],
-            keywords=[],
-        )
+    def test_add_creates_bib(self, tmp_lib: Library, dummy_pdf: Path, dummy_bib: Path):
+        paper = tmp_lib.add(pdf_path=dummy_pdf, bib_path=dummy_bib)
         bib_path = tmp_lib.library_dir / paper.citation_key / f"{paper.citation_key}.bib"
         assert bib_path.exists()
         assert paper.citation_key in bib_path.read_text()
 
-    def test_add_records_in_index(self, tmp_lib: Library, dummy_pdf: Path):
-        tmp_lib.add(
-            pdf_path=dummy_pdf,
-            title="Neural Networks",
-            year=2020,
-            authors=["Doe, Jane"],
-            keywords=[],
-        )
+    def test_add_bib_preserves_original_content(self, tmp_lib: Library, dummy_pdf: Path, dummy_bib: Path):
+        """Original BibTeX fields must be preserved; only the key changes."""
+        paper = tmp_lib.add(pdf_path=dummy_pdf, bib_path=dummy_bib)
+        bib_text = (
+            tmp_lib.library_dir / paper.citation_key / f"{paper.citation_key}.bib"
+        ).read_text()
+        # Original field values must still be present
+        assert "Machine Learning" in bib_text
+        assert "Smith, John" in bib_text
+        assert "10.1/ml" in bib_text
+        # Old key must be gone; new key must be present
+        assert "oldkey2015" not in bib_text
+        assert paper.citation_key in bib_text
+
+    def test_add_records_in_index(self, tmp_lib: Library, dummy_pdf: Path, dummy_bib: Path):
+        tmp_lib.add(pdf_path=dummy_pdf, bib_path=dummy_bib)
         papers = tmp_lib.list_papers()
         assert len(papers) == 1
-        assert papers[0].title == "Neural Networks"
+        assert papers[0].title == "Machine Learning"
 
-    def test_add_duplicate_key_raises(self, tmp_lib: Library, dummy_pdf: Path):
-        tmp_lib.add(
-            pdf_path=dummy_pdf,
-            title="Neural Networks",
-            year=2020,
-            authors=["Doe, Jane"],
-            keywords=[],
-        )
+    def test_add_extracts_metadata(self, tmp_lib: Library, dummy_pdf: Path, dummy_bib: Path):
+        paper = tmp_lib.add(pdf_path=dummy_pdf, bib_path=dummy_bib)
+        assert paper.title == "Machine Learning"
+        assert paper.year == 2023
+        assert paper.authors == ["Smith, John"]
+        assert "ml" in paper.keywords
+        assert paper.doi == "10.1/ml"
+
+    def test_add_handles_missing_doi(self, tmp_lib: Library, tmp_path: Path, dummy_pdf: Path):
+        bib = make_bib(tmp_path, "nodoi.bib", "No DOI Paper", 2021, ["Author, A"], ["test"])
+        paper = tmp_lib.add(pdf_path=dummy_pdf, bib_path=bib)
+        assert paper.doi == ""
+
+    def test_add_handles_no_keywords(self, tmp_lib: Library, tmp_path: Path, dummy_pdf: Path):
+        bib = make_bib(tmp_path, "nokw.bib", "No Keywords Paper", 2021, ["Author, A"], [])
+        paper = tmp_lib.add(pdf_path=dummy_pdf, bib_path=bib)
+        assert paper.keywords == []
+
+    def test_add_duplicate_key_raises(self, tmp_lib: Library, dummy_pdf: Path, dummy_bib: Path):
+        tmp_lib.add(pdf_path=dummy_pdf, bib_path=dummy_bib)
         dummy_pdf2 = dummy_pdf.parent / "paper2.pdf"
         dummy_pdf2.write_bytes(b"%PDF-1.4 second")
         with pytest.raises(FileExistsError):
-            tmp_lib.add(
-                pdf_path=dummy_pdf2,
-                title="Neural Networks",
-                year=2020,
-                authors=["Doe, Jane"],
-                keywords=[],
-            )
+            tmp_lib.add(pdf_path=dummy_pdf2, bib_path=dummy_bib)
 
-    def test_add_missing_pdf_raises(self, tmp_lib: Library):
+    def test_add_missing_pdf_raises(self, tmp_lib: Library, dummy_bib: Path):
         with pytest.raises(FileNotFoundError):
-            tmp_lib.add(
-                pdf_path=Path("/nonexistent/paper.pdf"),
-                title="Test",
-                year=2021,
-                authors=["Author, A"],
-                keywords=[],
-            )
+            tmp_lib.add(pdf_path=Path("/nonexistent/paper.pdf"), bib_path=dummy_bib)
 
-    def test_add_custom_key(self, tmp_lib: Library, dummy_pdf: Path):
+    def test_add_missing_bib_raises(self, tmp_lib: Library, dummy_pdf: Path):
+        with pytest.raises(FileNotFoundError):
+            tmp_lib.add(pdf_path=dummy_pdf, bib_path=Path("/nonexistent/paper.bib"))
+
+    def test_add_custom_key(self, tmp_lib: Library, dummy_pdf: Path, dummy_bib: Path):
         paper = tmp_lib.add(
-            pdf_path=dummy_pdf,
-            title="Custom Key Paper",
-            year=2022,
-            authors=["Author, A"],
-            keywords=[],
-            citation_key="mykey2022custom",
+            pdf_path=dummy_pdf, bib_path=dummy_bib, citation_key="mykey2022custom"
         )
         assert paper.citation_key == "mykey2022custom"
 
@@ -224,37 +220,19 @@ class TestLibraryAdd:
 
 
 class TestLibraryRemove:
-    def test_remove_deletes_directory(self, tmp_lib: Library, dummy_pdf: Path):
-        paper = tmp_lib.add(
-            pdf_path=dummy_pdf,
-            title="To Remove",
-            year=2021,
-            authors=["Author, A"],
-            keywords=[],
-        )
+    def test_remove_deletes_directory(self, tmp_lib: Library, dummy_pdf: Path, dummy_bib: Path):
+        paper = tmp_lib.add(pdf_path=dummy_pdf, bib_path=dummy_bib)
         key = paper.citation_key
         tmp_lib.remove(key)
         assert not (tmp_lib.library_dir / key).exists()
 
-    def test_remove_updates_index(self, tmp_lib: Library, dummy_pdf: Path):
-        paper = tmp_lib.add(
-            pdf_path=dummy_pdf,
-            title="To Remove",
-            year=2021,
-            authors=["Author, A"],
-            keywords=[],
-        )
+    def test_remove_updates_index(self, tmp_lib: Library, dummy_pdf: Path, dummy_bib: Path):
+        paper = tmp_lib.add(pdf_path=dummy_pdf, bib_path=dummy_bib)
         tmp_lib.remove(paper.citation_key)
         assert tmp_lib.list_papers() == []
 
-    def test_remove_keep_files(self, tmp_lib: Library, dummy_pdf: Path):
-        paper = tmp_lib.add(
-            pdf_path=dummy_pdf,
-            title="Keep Files",
-            year=2021,
-            authors=["Author, A"],
-            keywords=[],
-        )
+    def test_remove_keep_files(self, tmp_lib: Library, dummy_pdf: Path, dummy_bib: Path):
+        paper = tmp_lib.add(pdf_path=dummy_pdf, bib_path=dummy_bib)
         key = paper.citation_key
         tmp_lib.remove(key, delete_files=False)
         assert (tmp_lib.library_dir / key).exists()  # files remain
@@ -282,7 +260,8 @@ class TestLibrarySearch:
         ):
             pdf = tmp_path / f"paper{i}.pdf"
             pdf.write_bytes(b"%PDF")
-            lib.add(pdf_path=pdf, title=title, year=year, authors=authors, keywords=keywords)
+            bib = make_bib(tmp_path, f"paper{i}.bib", title, year, authors, keywords)
+            lib.add(pdf_path=pdf, bib_path=bib)
 
     def test_search_by_author(self, tmp_lib: Library, tmp_path: Path):
         self._populate(tmp_lib, tmp_path)
@@ -324,14 +303,8 @@ class TestLibrarySearch:
 
 
 class TestLibraryNotesPath:
-    def test_notes_path_correct(self, tmp_lib: Library, dummy_pdf: Path):
-        paper = tmp_lib.add(
-            pdf_path=dummy_pdf,
-            title="Test Notes",
-            year=2022,
-            authors=["Author, A"],
-            keywords=[],
-        )
+    def test_notes_path_correct(self, tmp_lib: Library, dummy_pdf: Path, dummy_bib: Path):
+        paper = tmp_lib.add(pdf_path=dummy_pdf, bib_path=dummy_bib)
         notes = tmp_lib.notes_path(paper.citation_key)
         assert notes == tmp_lib.library_dir / paper.citation_key / f"{paper.citation_key}.md"
 
