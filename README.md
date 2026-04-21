@@ -156,6 +156,102 @@ liber serve --host 0.0.0.0         # listen on all network interfaces
 liber --library-dir /path/to/lib serve  # use a custom library directory
 ```
 
+### Auto-start on boot
+
+#### Linux (systemd)
+
+Create a systemd user service so that `liber serve` starts automatically when
+you log in:
+
+**1. Create the service file**
+
+```bash
+mkdir -p ~/.config/systemd/user
+cat > ~/.config/systemd/user/liber.service << 'EOF'
+[Unit]
+Description=liber web interface
+After=network.target
+
+[Service]
+ExecStart=/path/to/.venv/bin/liber serve
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
+EOF
+```
+
+Replace `/path/to/.venv/bin/liber` with the actual path to the `liber`
+executable (run `which liber` to find it).
+
+**2. Enable and start the service**
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now liber.service
+```
+
+**3. Allow the service to run without an active login session** *(optional)*
+
+```bash
+loginctl enable-linger $USER
+```
+
+To check the service status or view logs:
+
+```bash
+systemctl --user status liber.service
+journalctl --user -u liber.service
+```
+
+#### macOS (launchd)
+
+Create a launch agent so that `liber serve` starts automatically at login:
+
+**1. Create the plist file**
+
+```bash
+cat > ~/Library/LaunchAgents/liber.plist << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>liber</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/path/to/.venv/bin/liber</string>
+        <string>serve</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/liber.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/liber.err</string>
+</dict>
+</plist>
+EOF
+```
+
+Replace `/path/to/.venv/bin/liber` with the actual path to the `liber`
+executable (run `which liber` to find it).
+
+**2. Load the launch agent**
+
+```bash
+launchctl load ~/Library/LaunchAgents/liber.plist
+```
+
+To stop and unload the agent:
+
+```bash
+launchctl unload ~/Library/LaunchAgents/liber.plist
+```
+
 ## Library structure
 
 ```txt
