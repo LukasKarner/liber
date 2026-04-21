@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}liber{% endblock %}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f5f5f5;
+      color: #222;
+      min-height: 100vh;
+    }
+    a { color: #2563eb; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Nav */
+    nav {
+      background: #1e3a5f;
+      color: #fff;
+      padding: 0 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      height: 3.25rem;
+    }
+    nav .brand { font-weight: 700; font-size: 1.25rem; letter-spacing: .04em; color: #fff; }
+    nav a { color: #c7d9f0; font-size: .9rem; }
+    nav a:hover { color: #fff; text-decoration: none; }
+
+    /* Main layout */
+    main { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+
+    /* Flash messages */
+    .flashes { list-style: none; margin-bottom: 1.25rem; }
+    .flashes li {
+      padding: .65rem 1rem;
+      border-radius: .4rem;
+      margin-bottom: .5rem;
+    }
+    .flashes li.success { background: #d1fae5; color: #065f46; }
+    .flashes li.error   { background: #fee2e2; color: #991b1b; }
+    .flashes li.info    { background: #dbeafe; color: #1e3a8a; }
+
+    /* Card */
+    .card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: .6rem;
+      padding: 1.5rem;
+      margin-bottom: 1.25rem;
+    }
+    .card h2 { font-size: 1.1rem; margin-bottom: .75rem; }
+
+    /* Table */
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: .55rem .75rem; border-bottom: 1px solid #e2e8f0; }
+    th { background: #f1f5f9; font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f8fafc; }
+
+    /* Buttons */
+    .btn {
+      display: inline-block;
+      padding: .45rem .9rem;
+      border-radius: .35rem;
+      font-size: .875rem;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      text-decoration: none;
+    }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-primary:hover { background: #1d4ed8; color: #fff; text-decoration: none; }
+    .btn-danger  { background: #dc2626; color: #fff; }
+    .btn-danger:hover  { background: #b91c1c; color: #fff; text-decoration: none; }
+    .btn-secondary { background: #e2e8f0; color: #334155; }
+    .btn-secondary:hover { background: #cbd5e1; color: #1e293b; text-decoration: none; }
+
+    /* Forms */
+    .form-group { margin-bottom: 1rem; }
+    label { display: block; font-size: .875rem; font-weight: 500; margin-bottom: .3rem; }
+    input[type="text"], input[type="number"], input[type="file"], textarea, select {
+      width: 100%;
+      padding: .5rem .75rem;
+      border: 1px solid #cbd5e1;
+      border-radius: .35rem;
+      font-size: .9rem;
+      background: #fff;
+    }
+    input:focus, textarea:focus { outline: 2px solid #2563eb; border-color: #2563eb; }
+    textarea { resize: vertical; min-height: 120px; font-family: monospace; }
+
+    /* Metadata list */
+    dl { display: grid; grid-template-columns: max-content 1fr; gap: .35rem 1.25rem; }
+    dt { font-weight: 600; font-size: .875rem; color: #64748b; }
+    dd { font-size: .9rem; }
+
+    /* Page heading */
+    .page-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 1.25rem;
+    }
+    .page-header h1 { font-size: 1.5rem; }
+
+    /* Empty state */
+    .empty { text-align: center; color: #94a3b8; padding: 3rem 0; font-size: 1rem; }
+
+    /* Citation key badge */
+    .key-badge {
+      display: inline-block;
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+      border-radius: .25rem;
+      padding: .1rem .45rem;
+      font-size: .8rem;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <a class="brand" href="{{ url_for('index') }}">liber</a>
+    <a href="{{ url_for('index') }}">Library</a>
+    <a href="{{ url_for('search') }}">Search</a>
+    <a href="{{ url_for('add') }}">Add Paper</a>
+  </nav>
+  <main>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class="flashes">
+          {% for category, message in messages %}
+            <li class="{{ category }}">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

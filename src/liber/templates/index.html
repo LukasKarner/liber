@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Library — liber{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Library <small style="font-size:.75rem;color:#64748b;font-weight:400;">({{ papers|length }} paper{{ 's' if papers|length != 1 else '' }})</small></h1>
+  <a class="btn btn-primary" href="{{ url_for('add') }}">+ Add Paper</a>
+</div>
+
+{% if papers %}
+<div class="card" style="padding:0;overflow:hidden;">
+  <table>
+    <thead>
+      <tr>
+        <th>Citation Key</th>
+        <th>Year</th>
+        <th>Title</th>
+        <th>Authors</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for paper in papers %}
+      <tr>
+        <td><span class="key-badge">{{ paper.citation_key }}</span></td>
+        <td>{{ paper.year }}</td>
+        <td><a href="{{ url_for('paper_detail', citation_key=paper.citation_key) }}">{{ paper.title }}</a></td>
+        <td>{{ paper.authors | join('; ') }}</td>
+        <td style="white-space:nowrap;">
+          <a class="btn btn-secondary" style="font-size:.78rem;padding:.3rem .65rem;" href="{{ url_for('paper_detail', citation_key=paper.citation_key) }}">View</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+  <div class="empty">
+    <p>The library is empty.</p>
+    <p style="margin-top:.75rem;"><a href="{{ url_for('add') }}">Add your first paper →</a></p>
+  </div>
+{% endif %}
+{% endblock %}
