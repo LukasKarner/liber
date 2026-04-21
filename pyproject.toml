@@ -20,5 +20,8 @@ liber = "liber.cli:cli"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+liber = ["templates/*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
