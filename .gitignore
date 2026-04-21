@@ -16,8 +16,5 @@ build/
 *.swp
 
 # library
-.liber_index.json
+library/
 .liber_secret_key
-*.pdf
-*.bib
-*.md
