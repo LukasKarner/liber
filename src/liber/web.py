@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 import os
+import ipaddress
+import socket
 import tempfile
+import urllib.error
+import urllib.parse
+import urllib.request
 from pathlib import Path
 from typing import Optional
 
@@ -22,6 +27,50 @@ from liber.library import Library
 
 _DEFAULT_LIBRARY_DIR = Path.home() / "liber"
 _LIBER_DIR_ENV = "LIBER_DIR"
+
+
+_PDF_DOWNLOAD_MAX_BYTES = 50 * 1024 * 1024  # 50 MB
+_PDF_DOWNLOAD_CHUNK_SIZE = 64 * 1024  # 64 KB
+
+
+def _is_safe_url(url: str) -> bool:
+    """Return True if *url* is a safe http/https URL pointing to a public host.
+
+    Resolves the hostname via :func:`socket.getaddrinfo` (covering both IPv4
+    and IPv6) and rejects loopback, private, link-local, or reserved addresses
+    to mitigate SSRF risks.
+
+    Note: DNS rebinding (TOCTOU) is a residual risk because
+    ``urllib.request.urlopen`` performs its own resolution after this check.
+    This function reduces exposure but is not a complete defence against a
+    targeted DNS-rebinding attack.
+    """
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        return False
+    hostname = parsed.hostname
+    if not hostname:
+        return False
+    try:
+        addrinfos = socket.getaddrinfo(hostname, None)
+    except socket.gaierror:
+        return False
+    if not addrinfos:
+        return False
+    for _family, _type, _proto, _canonname, sockaddr in addrinfos:
+        addr_str = sockaddr[0]
+        try:
+            addr = ipaddress.ip_address(addr_str)
+        except ValueError:
+            return False
+        if (
+            addr.is_loopback
+            or addr.is_private
+            or addr.is_link_local
+            or addr.is_reserved
+        ):
+            return False
+    return True
 
 
 def create_app(library_dir: Optional[Path] = None) -> Flask:
@@ -88,7 +137,8 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
         except KeyError:
             abort(404)
 
-        bibtex = paper.to_bibtex()
+        bib_file = lib.bib_path(citation_key)
+        bibtex = bib_file.read_text(encoding="utf-8") if bib_file.exists() else paper.to_bibtex()
 
         notes_path = lib.notes_path(citation_key)
         notes_content = notes_path.read_text(encoding="utf-8") if notes_path.exists() else None
@@ -191,12 +241,14 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
             return render_template("add.html")
 
         pdf_file = request.files.get("pdf")
+        pdf_url = (request.form.get("pdf_url") or "").strip()
         bib_file = request.files.get("bib")
         bib_text = (request.form.get("bib_text") or "").strip()
         key = request.form.get("key") or None
 
-        if not pdf_file or not pdf_file.filename:
-            flash("Please select a PDF file.", "error")
+        has_pdf_file = pdf_file and pdf_file.filename
+        if not has_pdf_file and not pdf_url:
+            flash("Please select a PDF file or provide a URL to a PDF.", "error")
             return render_template("add.html")
 
         has_bib_file = bib_file and bib_file.filename
@@ -208,13 +260,44 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
             tmp = Path(tmpdir)
             pdf_path = tmp / "upload.pdf"
             bib_path = tmp / "upload.bib"
-            pdf_file.save(str(pdf_path))
+
+            if has_pdf_file:
+                pdf_file.save(str(pdf_path))
+            else:
+                # Validate and download from URL
+                if not _is_safe_url(pdf_url):
+                    flash(
+                        "PDF URL must use http or https and point to a public host.",
+                        "error",
+                    )
+                    return render_template("add.html")
+                try:
+                    with urllib.request.urlopen(pdf_url, timeout=30) as resp:  # noqa: S310
+                        chunks: list[bytes] = []
+                        total = 0
+                        while True:
+                            chunk = resp.read(_PDF_DOWNLOAD_CHUNK_SIZE)
+                            if not chunk:
+                                break
+                            total += len(chunk)
+                            if total > _PDF_DOWNLOAD_MAX_BYTES:
+                                flash(
+                                    "The PDF at the provided URL exceeds the"
+                                    " maximum allowed size (50 MB).",
+                                    "error",
+                                )
+                                return render_template("add.html")
+                            chunks.append(chunk)
+                    pdf_path.write_bytes(b"".join(chunks))
+                except urllib.error.URLError as exc:
+                    flash(f"Failed to download PDF: {exc}", "error")
+                    return render_template("add.html")
 
             # Basic content validation: PDFs must start with the %PDF magic bytes
             with pdf_path.open("rb") as fh:
                 header = fh.read(4)
             if header != b"%PDF":
-                flash("The uploaded file does not appear to be a valid PDF.", "error")
+                flash("The file does not appear to be a valid PDF.", "error")
                 return render_template("add.html")
 
             if has_bib_file:

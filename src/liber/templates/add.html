@@ -10,8 +10,12 @@
 <div class="card">
   <form method="post" enctype="multipart/form-data">
     <div class="form-group">
-      <label for="pdf">PDF file <span style="color:#dc2626">*</span></label>
-      <input type="file" id="pdf" name="pdf" accept=".pdf" required>
+      <label for="pdf">PDF file <span style="color:#94a3b8;font-weight:400;">(optional if you provide a URL below)</span></label>
+      <input type="file" id="pdf" name="pdf" accept=".pdf">
+    </div>
+    <div class="form-group">
+      <label for="pdf_url">Or provide a URL to the PDF <span style="color:#94a3b8;font-weight:400;">(used only when no file is selected above)</span></label>
+      <input type="url" id="pdf_url" name="pdf_url" placeholder="https://example.com/paper.pdf">
     </div>
     <div class="form-group">
       <label for="bib">BibTeX file (.bib) <span style="color:#94a3b8;font-weight:400;">(optional if you paste below)</span></label>
