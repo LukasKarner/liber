@@ -37,9 +37,9 @@
 
 <div class="card">
   <h2>BibTeX</h2>
-  <pre style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:.35rem;padding:1rem;overflow-x:auto;font-size:.85rem;line-height:1.5;">{{ bibtex }}</pre>
+  <pre id="bibtex-content" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:.35rem;padding:1rem;overflow-x:auto;font-size:.85rem;line-height:1.5;">{{ bibtex }}</pre>
   <button class="btn btn-secondary" style="margin-top:.75rem;" onclick="
-    navigator.clipboard.writeText(document.querySelector('pre').textContent);
+    navigator.clipboard.writeText(document.getElementById('bibtex-content').textContent);
     this.textContent='Copied!';
     setTimeout(()=>this.textContent='Copy BibTeX',1500);
   ">Copy BibTeX</button>
