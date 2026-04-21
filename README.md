@@ -19,7 +19,7 @@ publication year, authors, keywords, and DOI.
 
 Keys follow the **author–year–title** convention:
 
-```bash
+```txt
 {first_author_last_name}{year}{first_significant_title_word}
 ```
 
@@ -140,6 +140,12 @@ Launch a locally hosted website for browsing and managing your library:
 liber serve
 ```
 
+To keep the service running in the background after closing the terminal window:
+
+```bash
+nohup liber serve
+```
+
 Then open <http://127.0.0.1:5000> in your browser.
 
 Additional options:
@@ -152,7 +158,7 @@ liber --library-dir /path/to/lib serve  # use a custom library directory
 
 ## Library structure
 
-```bash
+```txt
 ~/liber/
 ├── .liber_index.json
 ├── vaswani2017attention/
