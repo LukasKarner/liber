@@ -81,7 +81,7 @@ class TestAddCmd:
 
     def test_add_creates_files(self, runner, lib_dir, dummy_pdf, dummy_bib):
         self._add(runner, lib_dir, dummy_pdf, dummy_bib)
-        paper_dir = lib_dir / "lecun2015deep"
+        paper_dir = lib_dir / "library" / "lecun2015deep"
         assert paper_dir.is_dir()
         assert (paper_dir / "lecun2015deep.pdf").exists()
         assert (paper_dir / "lecun2015deep.bib").exists()
@@ -89,14 +89,14 @@ class TestAddCmd:
     def test_add_bib_key_updated(self, runner, lib_dir, dummy_pdf, dummy_bib):
         """The stored .bib file must use the new citation key, not the original."""
         self._add(runner, lib_dir, dummy_pdf, dummy_bib)
-        bib_text = (lib_dir / "lecun2015deep" / "lecun2015deep.bib").read_text()
+        bib_text = (lib_dir / "library" / "lecun2015deep" / "lecun2015deep.bib").read_text()
         assert "lecun2015deep" in bib_text
         assert "oldkey" not in bib_text
 
     def test_add_bib_fields_preserved(self, runner, lib_dir, dummy_pdf, dummy_bib):
         """Original BibTeX fields (title, author, doi…) must be preserved."""
         self._add(runner, lib_dir, dummy_pdf, dummy_bib)
-        bib_text = (lib_dir / "lecun2015deep" / "lecun2015deep.bib").read_text()
+        bib_text = (lib_dir / "library" / "lecun2015deep" / "lecun2015deep.bib").read_text()
         assert "Deep Learning" in bib_text
         assert "LeCun, Yann" in bib_text
         assert "10.1038/nature14539" in bib_text
@@ -215,7 +215,7 @@ class TestRemoveCmd:
             input="y\n",
         )
         assert result.exit_code == 0
-        assert not (lib_dir / "author2021remove").exists()
+        assert not (lib_dir / "library" / "author2021remove").exists()
 
     def test_remove_keep_files(self, runner, lib_dir, tmp_path, dummy_pdf):
         bib = make_bib(tmp_path, "keep.bib", "Keep Paper", 2021, ["Author, A"])
@@ -226,7 +226,7 @@ class TestRemoveCmd:
             input="y\n",
         )
         assert result.exit_code == 0
-        assert (lib_dir / "author2021keep").exists()
+        assert (lib_dir / "library" / "author2021keep").exists()
 
     def test_remove_nonexistent_fails(self, runner, lib_dir):
         runner.invoke(cli, _base_args(lib_dir) + ["init"])

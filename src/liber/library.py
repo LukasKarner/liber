@@ -70,17 +70,22 @@ class Library:
 
     Directory layout::
 
-        <library_dir>/
-        ├── .liber_index.json
-        ├── <citation_key>/
-        │   ├── <citation_key>.pdf
-        │   ├── <citation_key>.bib
-        │   └── <citation_key>.md   (optional)
-        └── ...
+        <root_dir>/
+        └── library/
+            ├── .liber_index.json
+            ├── <citation_key>/
+            │   ├── <citation_key>.pdf
+            │   ├── <citation_key>.bib
+            │   └── <citation_key>.md   (optional)
+            └── ...
+
+    ``library_dir`` passed to the constructor is the root directory (e.g.
+    ``~/liber``).  All paper sub-directories and the index file are stored
+    inside the ``library/`` sub-directory of that root.
     """
 
     def __init__(self, library_dir: Path) -> None:
-        self.library_dir = Path(library_dir).expanduser().resolve()
+        self.library_dir = Path(library_dir).expanduser().resolve() / "library"
         self._index_path = self.library_dir / _INDEX_FILE
 
     # ------------------------------------------------------------------
