@@ -14,8 +14,12 @@
       <input type="file" id="pdf" name="pdf" accept=".pdf" required>
     </div>
     <div class="form-group">
-      <label for="bib">BibTeX file (.bib) <span style="color:#dc2626">*</span></label>
-      <input type="file" id="bib" name="bib" accept=".bib" required>
+      <label for="bib">BibTeX file (.bib) <span style="color:#94a3b8;font-weight:400;">(optional if you paste below)</span></label>
+      <input type="file" id="bib" name="bib" accept=".bib">
+    </div>
+    <div class="form-group">
+      <label for="bib_text">Or paste BibTeX entry <span style="color:#94a3b8;font-weight:400;">(used only when no file is selected above)</span></label>
+      <textarea id="bib_text" name="bib_text" rows="10" style="font-family:monospace;font-size:.875rem;" placeholder="@article{key,&#10;  title  = {Title},&#10;  author = {Author, Name},&#10;  year   = {2024},&#10;}"></textarea>
     </div>
     <div class="form-group">
       <label for="key">Citation key <span style="color:#94a3b8;font-weight:400;">(optional — auto-generated from bib if blank)</span></label>

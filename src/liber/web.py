@@ -133,6 +133,48 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
         )
         return render_template("notes.html", paper=paper, notes_content=notes_content)
 
+    @app.route("/paper/<citation_key>/rename", methods=["POST"])
+    def paper_rename(citation_key: str):
+        new_key = (request.form.get("new_key") or "").strip()
+        if not new_key:
+            flash("Please enter a new citation key.", "error")
+            return redirect(url_for("paper_detail", citation_key=citation_key))
+        try:
+            paper = lib.rename_key(citation_key, new_key)
+        except KeyError:
+            abort(404)
+        except (FileExistsError, ValueError) as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("paper_detail", citation_key=citation_key))
+        flash(f"Citation key renamed to '{paper.citation_key}'.", "success")
+        return redirect(url_for("paper_detail", citation_key=paper.citation_key))
+
+    @app.route("/paper/<citation_key>/edit_bibtex", methods=["GET", "POST"])
+    def paper_edit_bibtex(citation_key: str):
+        try:
+            paper = lib.get(citation_key)
+        except KeyError:
+            abort(404)
+
+        bib_file = lib.library_dir / citation_key / f"{citation_key}.bib"
+        current_bib = bib_file.read_text(encoding="utf-8") if bib_file.exists() else paper.to_bibtex()
+
+        if request.method == "POST":
+            new_bib_text = request.form.get("bibtex", "")
+            try:
+                lib.update_bibtex(citation_key, new_bib_text)
+            except (ValueError, KeyError) as exc:
+                flash(str(exc), "error")
+                return render_template(
+                    "edit_bibtex.html",
+                    paper=paper,
+                    bibtex=new_bib_text,
+                )
+            flash("BibTeX entry updated.", "success")
+            return redirect(url_for("paper_detail", citation_key=citation_key))
+
+        return render_template("edit_bibtex.html", paper=paper, bibtex=current_bib)
+
     @app.route("/paper/<citation_key>/remove", methods=["POST"])
     def paper_remove(citation_key: str):
         try:
@@ -150,13 +192,16 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
 
         pdf_file = request.files.get("pdf")
         bib_file = request.files.get("bib")
+        bib_text = (request.form.get("bib_text") or "").strip()
         key = request.form.get("key") or None
 
         if not pdf_file or not pdf_file.filename:
             flash("Please select a PDF file.", "error")
             return render_template("add.html")
-        if not bib_file or not bib_file.filename:
-            flash("Please select a BibTeX (.bib) file.", "error")
+
+        has_bib_file = bib_file and bib_file.filename
+        if not has_bib_file and not bib_text:
+            flash("Please select a BibTeX (.bib) file or paste a BibTeX entry.", "error")
             return render_template("add.html")
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -164,7 +209,6 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
             pdf_path = tmp / "upload.pdf"
             bib_path = tmp / "upload.bib"
             pdf_file.save(str(pdf_path))
-            bib_file.save(str(bib_path))
 
             # Basic content validation: PDFs must start with the %PDF magic bytes
             with pdf_path.open("rb") as fh:
@@ -172,6 +216,11 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
             if header != b"%PDF":
                 flash("The uploaded file does not appear to be a valid PDF.", "error")
                 return render_template("add.html")
+
+            if has_bib_file:
+                bib_file.save(str(bib_path))
+            else:
+                bib_path.write_text(bib_text, encoding="utf-8")
 
             try:
                 paper = lib.add(pdf_path=pdf_path, bib_path=bib_path, citation_key=key)

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Edit BibTeX — {{ paper.citation_key }} — liber{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Edit BibTeX</h1>
+  <a class="btn btn-secondary" href="{{ url_for('paper_detail', citation_key=paper.citation_key) }}">← Back</a>
+</div>
+
+<div class="card">
+  <p style="font-size:.875rem;color:#64748b;margin-bottom:1rem;">
+    Edit the BibTeX entry below. The citation key (<span class="key-badge">{{ paper.citation_key }}</span>) will be preserved regardless of any key written here.
+  </p>
+  <form method="post">
+    <div class="form-group">
+      <label for="bibtex">BibTeX entry</label>
+      <textarea id="bibtex" name="bibtex" rows="16" style="font-family:monospace;font-size:.875rem;">{{ bibtex }}</textarea>
+    </div>
+    <div style="display:flex;gap:.5rem;">
+      <button type="submit" class="btn btn-primary">Save Changes</button>
+      <a class="btn btn-secondary" href="{{ url_for('paper_detail', citation_key=paper.citation_key) }}">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
