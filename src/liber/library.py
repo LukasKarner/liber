@@ -350,8 +350,9 @@ class Library:
 
         # Write the bib file, preserving the existing citation key
         bib_text_with_key = rewrite_key(new_bib_text, citation_key)
-        bib_file = self.library_dir / citation_key / f"{citation_key}.bib"
-        bib_file.write_text(bib_text_with_key, encoding="utf-8")
+        (self.library_dir / citation_key / f"{citation_key}.bib").write_text(
+            bib_text_with_key, encoding="utf-8"
+        )
 
         # Update index entry
         paper = Paper(
@@ -377,6 +378,17 @@ class Library:
         """
         self.get(citation_key)  # raises KeyError if not found
         return self.library_dir / citation_key / f"{citation_key}.md"
+
+    def bib_path(self, citation_key: str) -> Path:
+        """Return the path to the BibTeX file for *citation_key*.
+
+        The file is not created by this method; callers may create it as needed.
+
+        Raises:
+            KeyError: If no paper with *citation_key* exists in the index.
+        """
+        self.get(citation_key)  # raises KeyError if not found
+        return self.library_dir / citation_key / f"{citation_key}.bib"
 
     # ------------------------------------------------------------------
     # Internal helpers

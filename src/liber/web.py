@@ -156,7 +156,7 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
         except KeyError:
             abort(404)
 
-        bib_file = lib.library_dir / citation_key / f"{citation_key}.bib"
+        bib_file = lib.bib_path(citation_key)
         current_bib = bib_file.read_text(encoding="utf-8") if bib_file.exists() else paper.to_bibtex()
 
         if request.method == "POST":
