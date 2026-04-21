@@ -160,14 +160,15 @@ liber --library-dir /path/to/lib serve  # use a custom library directory
 
 ```txt
 ~/liber/
-├── .liber_index.json
-├── vaswani2017attention/
-│   ├── vaswani2017attention.pdf
-│   ├── vaswani2017attention.bib
-│   └── vaswani2017attention.md   ← optional notes
-└── lecun2015deep/
-    ├── lecun2015deep.pdf
-    └── lecun2015deep.bib
+└── library/
+    ├── .liber_index.json
+    ├── vaswani2017attention/
+    │   ├── vaswani2017attention.pdf
+    │   ├── vaswani2017attention.bib
+    │   └── vaswani2017attention.md   ← optional notes
+    └── lecun2015deep/
+        ├── lecun2015deep.pdf
+        └── lecun2015deep.bib
 ```
 
 ## Running tests
