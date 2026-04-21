@@ -29,11 +29,39 @@ Examples:
 
 ## Installation
 
+### Prerequisites
+
+- Python ≥ 3.9
+- [git](https://git-scm.com/)
+
+### Step-by-step
+
+**1. Clone the repository**
+
+```bash
+git clone https://github.com/LukasKarner/liber.git
+cd liber
+```
+
+**2. Create and activate a virtual environment** *(recommended)*
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate   # on Windows: .venv\Scripts\activate
+```
+
+**3. Install liber**
+
 ```bash
 pip install .
 ```
 
-Requires Python ≥ 3.9.
+After installation the `liber` command is available in your shell. Verify it
+with:
+
+```bash
+liber --help
+```
 
 ## Usage
 
@@ -103,6 +131,24 @@ Opens the paper's Markdown notes file in `$EDITOR` (default: `nano`).
 liber note vaswani2017attention
 ```
 
+### Start the web interface
+
+Launch a locally hosted website for browsing and managing your library:
+
+```bash
+liber serve
+```
+
+Then open <http://127.0.0.1:5000> in your browser.
+
+Additional options:
+
+```bash
+liber serve --port 8080            # use a different port
+liber serve --host 0.0.0.0         # listen on all network interfaces
+liber --library-dir /path/to/lib serve  # use a custom library directory
+```
+
 ## Library structure
 
 ```
@@ -121,5 +167,5 @@ liber note vaswani2017attention
 
 ```bash
 pip install pytest
-pytest
+python3 -m pytest tests/
 ```
