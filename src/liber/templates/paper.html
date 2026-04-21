@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}{{ paper.title }} — liber{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 style="font-size:1.25rem;">{{ paper.title }}</h1>
+  <div style="display:flex;gap:.5rem;">
+    <a class="btn btn-secondary" href="{{ url_for('index') }}">← Back</a>
+    <a class="btn btn-secondary" href="{{ url_for('paper_notes', citation_key=paper.citation_key) }}">Notes</a>
+    <a class="btn btn-primary" href="{{ url_for('paper_pdf', citation_key=paper.citation_key) }}" target="_blank">View PDF</a>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Metadata</h2>
+  <dl>
+    <dt>Citation Key</dt>
+    <dd><span class="key-badge">{{ paper.citation_key }}</span></dd>
+
+    <dt>Year</dt>
+    <dd>{{ paper.year }}</dd>
+
+    <dt>Authors</dt>
+    <dd>{{ paper.authors | join('; ') }}</dd>
+
+    {% if paper.keywords %}
+    <dt>Keywords</dt>
+    <dd>{{ paper.keywords | join(', ') }}</dd>
+    {% endif %}
+
+    {% if paper.doi %}
+    <dt>DOI</dt>
+    <dd><a href="https://doi.org/{{ paper.doi }}" target="_blank" rel="noopener">{{ paper.doi }}</a></dd>
+    {% endif %}
+  </dl>
+</div>
+
+<div class="card">
+  <h2>BibTeX</h2>
+  <pre style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:.35rem;padding:1rem;overflow-x:auto;font-size:.85rem;line-height:1.5;">{{ bibtex }}</pre>
+  <button class="btn btn-secondary" style="margin-top:.75rem;" onclick="
+    navigator.clipboard.writeText(document.querySelector('pre').textContent);
+    this.textContent='Copied!';
+    setTimeout(()=>this.textContent='Copy BibTeX',1500);
+  ">Copy BibTeX</button>
+</div>
+
+<div class="card">
+  <h2>Notes</h2>
+  {% if notes_content is not none %}
+    <pre style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:.35rem;padding:1rem;overflow-x:auto;font-size:.85rem;line-height:1.5;white-space:pre-wrap;">{{ notes_content }}</pre>
+  {% else %}
+    <p style="color:#94a3b8;font-size:.9rem;">No notes yet.</p>
+  {% endif %}
+  <a class="btn btn-secondary" style="margin-top:.75rem;" href="{{ url_for('paper_notes', citation_key=paper.citation_key) }}">Edit Notes</a>
+</div>
+
+<div class="card" style="border-color:#fecaca;">
+  <h2 style="color:#dc2626;">Danger Zone</h2>
+  <p style="font-size:.875rem;color:#64748b;margin-bottom:.75rem;">Permanently remove this paper and all its files from the library.</p>
+  <form method="post" action="{{ url_for('paper_remove', citation_key=paper.citation_key) }}"
+        onsubmit="return confirm('Remove {{ paper.citation_key }} and all its files? This cannot be undone.');">
+    <button type="submit" class="btn btn-danger">Remove Paper</button>
+  </form>
+</div>
+{% endblock %}

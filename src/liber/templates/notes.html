@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Notes: {{ paper.citation_key }} — liber{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Notes: <span class="key-badge" style="font-size:1rem;">{{ paper.citation_key }}</span></h1>
+  <a class="btn btn-secondary" href="{{ url_for('paper_detail', citation_key=paper.citation_key) }}">← Back to Paper</a>
+</div>
+
+<div class="card">
+  <p style="font-size:.875rem;color:#64748b;margin-bottom:.75rem;">{{ paper.title }} ({{ paper.year }})</p>
+  <form method="post">
+    <div class="form-group">
+      <label for="notes">Markdown notes</label>
+      <textarea id="notes" name="notes" rows="20" style="min-height:400px;">{{ notes_content }}</textarea>
+    </div>
+    <button type="submit" class="btn btn-primary">Save Notes</button>
+    <a class="btn btn-secondary" style="margin-left:.5rem;" href="{{ url_for('paper_detail', citation_key=paper.citation_key) }}">Cancel</a>
+  </form>
+</div>
+{% endblock %}

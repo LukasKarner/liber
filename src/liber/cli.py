@@ -267,3 +267,35 @@ def note_cmd(ctx: click.Context, citation_key: str) -> None:
 
     editor = os.environ.get("EDITOR", "nano")
     subprocess.run([editor, str(notes)], check=False)
+
+
+# ---------------------------------------------------------------------------
+# serve
+# ---------------------------------------------------------------------------
+
+
+@cli.command("serve")
+@click.option("--host", default="127.0.0.1", show_default=True, help="Host to bind to.")
+@click.option("--port", "-p", default=5000, show_default=True, type=int, help="Port to listen on.")
+@click.option("--debug", is_flag=True, default=False, help="Enable Flask debug mode.")
+@click.pass_context
+def serve_cmd(ctx: click.Context, host: str, port: int, debug: bool) -> None:
+    """Start the liber web interface.
+
+    Opens a locally hosted website for browsing and managing your library.
+
+    Example:
+
+    \b
+        liber serve
+        liber serve --port 8080
+        liber --library-dir /path/to/lib serve
+    """
+    from liber.web import create_app  # noqa: PLC0415
+
+    library_dir = ctx.obj["library_dir"]
+    app = create_app(library_dir=library_dir)
+    click.echo(f"Starting liber web interface at http://{host}:{port}")
+    click.echo(f"Library directory: {library_dir}")
+    click.echo("Press Ctrl+C to stop.")
+    app.run(host=host, port=port, debug=debug)
