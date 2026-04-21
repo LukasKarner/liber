@@ -19,11 +19,12 @@ publication year, authors, keywords, and DOI.
 
 Keys follow the **author–year–title** convention:
 
-```
+```bash
 {first_author_last_name}{year}{first_significant_title_word}
 ```
 
 Examples:
+
 - `vaswani2017attention` — Vaswani et al. (2017) "Attention Is All You Need"
 - `lecun2015deep` — LeCun et al. (2015) "Deep Learning"
 
@@ -151,7 +152,7 @@ liber --library-dir /path/to/lib serve  # use a custom library directory
 
 ## Library structure
 
-```
+```bash
 ~/liber/
 ├── .liber_index.json
 ├── vaswani2017attention/
