@@ -43,6 +43,7 @@
     this.textContent='Copied!';
     setTimeout(()=>this.textContent='Copy BibTeX',1500);
   ">Copy BibTeX</button>
+  <a class="btn btn-secondary" style="margin-top:.75rem;" href="{{ url_for('paper_edit_bibtex', citation_key=paper.citation_key) }}">Edit BibTeX</a>
 </div>
 
 <div class="card">
@@ -57,6 +58,16 @@
 
 <div class="card" style="border-color:#fecaca;">
   <h2 style="color:#dc2626;">Danger Zone</h2>
+  <p style="font-size:.875rem;color:#64748b;margin-bottom:.75rem;">Edit the citation key for this paper. All files and references will be updated accordingly.</p>
+  <form method="post" action="{{ url_for('paper_rename', citation_key=paper.citation_key) }}"
+        onsubmit="return confirm('Rename citation key from \'{{ paper.citation_key }}\' to \'' + this.new_key.value + '\'? Make sure to update any references in your documents.');"
+        style="display:flex;gap:.5rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:1.25rem;">
+    <div class="form-group" style="margin-bottom:0;flex:1;min-width:200px;">
+      <label for="new_key">New citation key</label>
+      <input type="text" id="new_key" name="new_key" placeholder="{{ paper.citation_key }}" required>
+    </div>
+    <button type="submit" class="btn btn-danger">Rename Key</button>
+  </form>
   <p style="font-size:.875rem;color:#64748b;margin-bottom:.75rem;">Permanently remove this paper and all its files from the library.</p>
   <form method="post" action="{{ url_for('paper_remove', citation_key=paper.citation_key) }}"
         onsubmit="return confirm('Remove {{ paper.citation_key }} and all its files? This cannot be undone.');">

@@ -311,3 +311,135 @@ class TestLibraryNotesPath:
     def test_notes_path_nonexistent_raises(self, tmp_lib: Library):
         with pytest.raises(KeyError):
             tmp_lib.notes_path("ghost2000key")
+
+
+# ---------------------------------------------------------------------------
+# Library.rename_key
+# ---------------------------------------------------------------------------
+
+
+class TestLibraryRenameKey:
+    def test_rename_updates_index(self, tmp_lib: Library, dummy_pdf: Path, dummy_bib: Path):
+        paper = tmp_lib.add(pdf_path=dummy_pdf, bib_path=dummy_bib)
+        old_key = paper.citation_key
+        renamed = tmp_lib.rename_key(old_key, "newkey2099test")
+        assert renamed.citation_key == "newkey2099test"
+        papers = tmp_lib.list_papers()
+        assert len(papers) == 1
+        assert papers[0].citation_key == "newkey2099test"
+        assert not any(p.citation_key == old_key for p in papers)
+
+    def test_rename_moves_directory(self, tmp_lib: Library, dummy_pdf: Path, dummy_bib: Path):
+        paper = tmp_lib.add(pdf_path=dummy_pdf, bib_path=dummy_bib)
+        old_key = paper.citation_key
+        tmp_lib.rename_key(old_key, "newkey2099test")
+        assert not (tmp_lib.library_dir / old_key).exists()
+        assert (tmp_lib.library_dir / "newkey2099test").is_dir()
+
+    def test_rename_renames_files(self, tmp_lib: Library, dummy_pdf: Path, dummy_bib: Path):
+        paper = tmp_lib.add(pdf_path=dummy_pdf, bib_path=dummy_bib)
+        tmp_lib.rename_key(paper.citation_key, "newkey2099test")
+        new_dir = tmp_lib.library_dir / "newkey2099test"
+        assert (new_dir / "newkey2099test.pdf").exists()
+        assert (new_dir / "newkey2099test.bib").exists()
+
+    def test_rename_updates_bib_file_content(self, tmp_lib: Library, dummy_pdf: Path, dummy_bib: Path):
+        paper = tmp_lib.add(pdf_path=dummy_pdf, bib_path=dummy_bib)
+        old_key = paper.citation_key
+        tmp_lib.rename_key(old_key, "newkey2099test")
+        bib_text = (tmp_lib.library_dir / "newkey2099test" / "newkey2099test.bib").read_text()
+        assert "newkey2099test" in bib_text
+        assert old_key not in bib_text
+
+    def test_rename_also_renames_notes(self, tmp_lib: Library, dummy_pdf: Path, dummy_bib: Path):
+        paper = tmp_lib.add(pdf_path=dummy_pdf, bib_path=dummy_bib)
+        old_key = paper.citation_key
+        notes = tmp_lib.notes_path(old_key)
+        notes.write_text("# Notes\n", encoding="utf-8")
+        tmp_lib.rename_key(old_key, "newkey2099test")
+        assert (tmp_lib.library_dir / "newkey2099test" / "newkey2099test.md").exists()
+
+    def test_rename_nonexistent_raises(self, tmp_lib: Library):
+        with pytest.raises(KeyError):
+            tmp_lib.rename_key("ghost2000key", "newkey2099test")
+
+    def test_rename_duplicate_target_raises(self, tmp_lib: Library, dummy_pdf: Path, dummy_bib: Path, tmp_path: Path):
+        from tests.conftest import make_bib as _make_bib
+        paper = tmp_lib.add(pdf_path=dummy_pdf, bib_path=dummy_bib)
+        pdf2 = tmp_path / "paper2.pdf"
+        pdf2.write_bytes(b"%PDF second")
+        bib2 = _make_bib(tmp_path, "b2.bib", "Another Paper", 2024, ["Other, A"], [])
+        paper2 = tmp_lib.add(pdf_path=pdf2, bib_path=bib2)
+        with pytest.raises(FileExistsError):
+            tmp_lib.rename_key(paper.citation_key, paper2.citation_key)
+
+    def test_rename_invalid_key_raises(self, tmp_lib: Library, dummy_pdf: Path, dummy_bib: Path):
+        paper = tmp_lib.add(pdf_path=dummy_pdf, bib_path=dummy_bib)
+        with pytest.raises(ValueError):
+            tmp_lib.rename_key(paper.citation_key, "invalid key!")
+
+    def test_rename_empty_key_raises(self, tmp_lib: Library, dummy_pdf: Path, dummy_bib: Path):
+        paper = tmp_lib.add(pdf_path=dummy_pdf, bib_path=dummy_bib)
+        with pytest.raises(ValueError):
+            tmp_lib.rename_key(paper.citation_key, "")
+
+
+# ---------------------------------------------------------------------------
+# Library.update_bibtex
+# ---------------------------------------------------------------------------
+
+
+class TestLibraryUpdateBibtex:
+    def test_update_bibtex_updates_index(self, tmp_lib: Library, dummy_pdf: Path, dummy_bib: Path):
+        paper = tmp_lib.add(pdf_path=dummy_pdf, bib_path=dummy_bib)
+        new_bib = (
+            f"@article{{{paper.citation_key},\n"
+            "  title  = {Updated Title},\n"
+            "  author = {Doe, Jane},\n"
+            "  year   = {2024},\n"
+            "}\n"
+        )
+        updated = tmp_lib.update_bibtex(paper.citation_key, new_bib)
+        assert updated.title == "Updated Title"
+        assert updated.year == 2024
+        assert updated.authors == ["Doe, Jane"]
+        assert updated.citation_key == paper.citation_key  # key unchanged
+
+    def test_update_bibtex_writes_file(self, tmp_lib: Library, dummy_pdf: Path, dummy_bib: Path):
+        paper = tmp_lib.add(pdf_path=dummy_pdf, bib_path=dummy_bib)
+        new_bib = (
+            f"@article{{differentkey,\n"
+            "  title  = {New Title},\n"
+            "  author = {Doe, Jane},\n"
+            "  year   = {2024},\n"
+            "}\n"
+        )
+        tmp_lib.update_bibtex(paper.citation_key, new_bib)
+        bib_text = (
+            tmp_lib.library_dir / paper.citation_key / f"{paper.citation_key}.bib"
+        ).read_text()
+        assert paper.citation_key in bib_text
+        assert "differentkey" not in bib_text
+        assert "New Title" in bib_text
+
+    def test_update_bibtex_ignores_key_in_text(self, tmp_lib: Library, dummy_pdf: Path, dummy_bib: Path):
+        paper = tmp_lib.add(pdf_path=dummy_pdf, bib_path=dummy_bib)
+        new_bib = (
+            "@article{totallydifferentkey,\n"
+            "  title  = {Some Title},\n"
+            "  author = {Doe, Jane},\n"
+            "  year   = {2024},\n"
+            "}\n"
+        )
+        updated = tmp_lib.update_bibtex(paper.citation_key, new_bib)
+        assert updated.citation_key == paper.citation_key
+
+    def test_update_bibtex_nonexistent_raises(self, tmp_lib: Library):
+        with pytest.raises(KeyError):
+            tmp_lib.update_bibtex("ghost2000key", "@article{x, title={T}, author={A}, year={2024}}")
+
+    def test_update_bibtex_invalid_bib_raises(self, tmp_lib: Library, dummy_pdf: Path, dummy_bib: Path):
+        paper = tmp_lib.add(pdf_path=dummy_pdf, bib_path=dummy_bib)
+        with pytest.raises(ValueError):
+            tmp_lib.update_bibtex(paper.citation_key, "not a bibtex entry at all")
+

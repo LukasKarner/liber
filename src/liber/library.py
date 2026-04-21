@@ -15,6 +15,7 @@ from liber.bibtex import (
     get_title,
     get_year,
     parse_bib_file,
+    parse_bibtex,
     rewrite_key,
 )
 from liber.models import Paper
@@ -258,6 +259,115 @@ class Library:
     # Notes
     # ------------------------------------------------------------------
 
+    def rename_key(self, old_key: str, new_key: str) -> Paper:
+        """Rename a paper's citation key.
+
+        Renames the paper's directory and all files inside it, updates the
+        citation key inside the stored ``.bib`` file, updates the index, and
+        returns the updated :class:`Paper`.
+
+        Args:
+            old_key: The current citation key.
+            new_key: The desired new citation key.
+
+        Raises:
+            KeyError: If no paper with *old_key* is found.
+            ValueError: If *new_key* is empty or contains invalid characters.
+            FileExistsError: If a paper with *new_key* already exists.
+        """
+        if not new_key or not re.fullmatch(r"[A-Za-z0-9_:.\-]+", new_key):
+            raise ValueError(
+                f"Invalid citation key {new_key!r}. "
+                "Use only letters, digits, underscores, hyphens, colons, or dots."
+            )
+
+        papers = self._read_index()
+        match = next((p for p in papers if p.citation_key == old_key), None)
+        if match is None:
+            raise KeyError(f"No paper with citation key '{old_key}' found.")
+
+        if any(p.citation_key == new_key for p in papers):
+            raise FileExistsError(
+                f"A paper with citation key '{new_key}' already exists in the library."
+            )
+
+        old_dir = self.library_dir / old_key
+        new_dir = self.library_dir / new_key
+
+        # Rename files inside the directory before renaming the directory itself
+        if old_dir.exists():
+            for suffix in (".pdf", ".bib", ".md"):
+                old_file = old_dir / f"{old_key}{suffix}"
+                if old_file.exists():
+                    old_file.rename(old_dir / f"{new_key}{suffix}")
+
+            # Update citation key inside the .bib file
+            bib_file = old_dir / f"{new_key}.bib"
+            if bib_file.exists():
+                bib_text = bib_file.read_text(encoding="utf-8")
+                bib_file.write_text(rewrite_key(bib_text, new_key), encoding="utf-8")
+
+            old_dir.rename(new_dir)
+
+        # Update index
+        match.citation_key = new_key
+        self._write_index(papers)
+
+        return match
+
+    def update_bibtex(self, citation_key: str, new_bib_text: str) -> Paper:
+        """Replace the stored BibTeX entry for *citation_key*.
+
+        The citation key is always kept as *citation_key* regardless of what
+        is written in *new_bib_text*.  Metadata stored in the index (title,
+        year, authors, keywords, doi) is re-extracted from *new_bib_text*.
+
+        Args:
+            citation_key: Citation key of the paper to update.
+            new_bib_text: Full BibTeX entry text (one ``@type{...}`` block).
+
+        Returns:
+            The updated :class:`Paper`.
+
+        Raises:
+            KeyError: If no paper with *citation_key* is found.
+            ValueError: If the BibTeX text is malformed or missing required
+                fields (title, year, author).
+        """
+        papers = self._read_index()
+        idx = next(
+            (i for i, p in enumerate(papers) if p.citation_key == citation_key), None
+        )
+        if idx is None:
+            raise KeyError(f"No paper with citation key '{citation_key}' found.")
+
+        fields = parse_bibtex(new_bib_text)
+        title = get_title(fields)
+        year = get_year(fields)
+        authors = get_authors(fields)
+        keywords = get_keywords(fields)
+        doi = get_doi(fields)
+
+        # Write the bib file, preserving the existing citation key
+        bib_text_with_key = rewrite_key(new_bib_text, citation_key)
+        (self.library_dir / citation_key / f"{citation_key}.bib").write_text(
+            bib_text_with_key, encoding="utf-8"
+        )
+
+        # Update index entry
+        paper = Paper(
+            title=title,
+            year=year,
+            authors=authors,
+            keywords=keywords,
+            doi=doi,
+            citation_key=citation_key,
+        )
+        papers[idx] = paper
+        self._write_index(papers)
+
+        return paper
+
     def notes_path(self, citation_key: str) -> Path:
         """Return the path to the notes Markdown file for *citation_key*.
 
@@ -268,6 +378,17 @@ class Library:
         """
         self.get(citation_key)  # raises KeyError if not found
         return self.library_dir / citation_key / f"{citation_key}.md"
+
+    def bib_path(self, citation_key: str) -> Path:
+        """Return the path to the BibTeX file for *citation_key*.
+
+        The file is not created by this method; callers may create it as needed.
+
+        Raises:
+            KeyError: If no paper with *citation_key* exists in the index.
+        """
+        self.get(citation_key)  # raises KeyError if not found
+        return self.library_dir / citation_key / f"{citation_key}.bib"
 
     # ------------------------------------------------------------------
     # Internal helpers
