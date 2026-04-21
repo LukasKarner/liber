@@ -5,6 +5,7 @@ __pycache__/
 dist/
 build/
 .eggs/
+.venv/
 
 # Pytest
 .pytest_cache/
@@ -13,3 +14,10 @@ build/
 .vscode/
 .idea/
 *.swp
+
+# library
+.liber_index.json
+.liber_secret_key
+*.pdf
+*.bib
+*.md
