@@ -492,3 +492,111 @@ class TestLibraryUpdateBibtex:
         with pytest.raises(ValueError):
             tmp_lib.update_bibtex(paper.citation_key, "not a bibtex entry at all")
 
+
+# ---------------------------------------------------------------------------
+# Library tag management
+# ---------------------------------------------------------------------------
+
+
+class TestLibraryTags:
+    def test_list_tags_empty_by_default(self, tmp_lib: Library):
+        assert tmp_lib.list_tags() == []
+
+    def test_create_tag_adds_to_registry(self, tmp_lib: Library):
+        tmp_lib.create_tag("ml")
+        assert "ml" in tmp_lib.list_tags()
+
+    def test_create_tag_is_idempotent(self, tmp_lib: Library):
+        tmp_lib.create_tag("ml")
+        tmp_lib.create_tag("ml")
+        assert tmp_lib.list_tags().count("ml") == 1
+
+    def test_create_tag_empty_raises(self, tmp_lib: Library):
+        with pytest.raises(ValueError):
+            tmp_lib.create_tag("")
+
+    def test_create_tag_invalid_chars_raises(self, tmp_lib: Library):
+        with pytest.raises(ValueError):
+            tmp_lib.create_tag("bad/tag!")
+
+    def test_list_tags_sorted(self, tmp_lib: Library):
+        tmp_lib.create_tag("zzz")
+        tmp_lib.create_tag("aaa")
+        tmp_lib.create_tag("mmm")
+        assert tmp_lib.list_tags() == ["aaa", "mmm", "zzz"]
+
+    def test_delete_tag_removes_from_registry(self, tmp_lib: Library):
+        tmp_lib.create_tag("ml")
+        tmp_lib.delete_tag("ml")
+        assert "ml" not in tmp_lib.list_tags()
+
+    def test_delete_tag_nonexistent_raises(self, tmp_lib: Library):
+        with pytest.raises(KeyError):
+            tmp_lib.delete_tag("ghost")
+
+    def test_add_paper_tag(self, tmp_lib: Library, dummy_bib: Path):
+        paper = tmp_lib.add(bib_path=dummy_bib)
+        tmp_lib.add_paper_tag(paper.citation_key, "survey")
+        updated = tmp_lib.get(paper.citation_key)
+        assert "survey" in updated.tags
+
+    def test_add_paper_tag_creates_global_tag(self, tmp_lib: Library, dummy_bib: Path):
+        paper = tmp_lib.add(bib_path=dummy_bib)
+        tmp_lib.add_paper_tag(paper.citation_key, "new-tag")
+        assert "new-tag" in tmp_lib.list_tags()
+
+    def test_add_paper_tag_idempotent(self, tmp_lib: Library, dummy_bib: Path):
+        paper = tmp_lib.add(bib_path=dummy_bib)
+        tmp_lib.add_paper_tag(paper.citation_key, "rl")
+        tmp_lib.add_paper_tag(paper.citation_key, "rl")
+        assert tmp_lib.get(paper.citation_key).tags.count("rl") == 1
+
+    def test_add_paper_tag_invalid_key_raises(self, tmp_lib: Library):
+        with pytest.raises(KeyError):
+            tmp_lib.add_paper_tag("ghost2000key", "ml")
+
+    def test_remove_paper_tag(self, tmp_lib: Library, dummy_bib: Path):
+        paper = tmp_lib.add(bib_path=dummy_bib)
+        tmp_lib.add_paper_tag(paper.citation_key, "nlp")
+        tmp_lib.remove_paper_tag(paper.citation_key, "nlp")
+        assert "nlp" not in tmp_lib.get(paper.citation_key).tags
+
+    def test_remove_paper_tag_keeps_global_tag(self, tmp_lib: Library, dummy_bib: Path):
+        paper = tmp_lib.add(bib_path=dummy_bib)
+        tmp_lib.add_paper_tag(paper.citation_key, "nlp")
+        tmp_lib.remove_paper_tag(paper.citation_key, "nlp")
+        assert "nlp" in tmp_lib.list_tags()
+
+    def test_remove_paper_tag_nonexistent_key_raises(self, tmp_lib: Library):
+        with pytest.raises(KeyError):
+            tmp_lib.remove_paper_tag("ghost2000key", "ml")
+
+    def test_delete_tag_removes_from_all_papers(self, tmp_lib: Library, tmp_path: Path, dummy_bib: Path):
+        paper = tmp_lib.add(bib_path=dummy_bib)
+        bib2 = make_bib(tmp_path, "b2.bib", "Another Paper", 2024, ["Doe, Jane"], [])
+        paper2 = tmp_lib.add(bib_path=bib2)
+        tmp_lib.add_paper_tag(paper.citation_key, "shared")
+        tmp_lib.add_paper_tag(paper2.citation_key, "shared")
+        tmp_lib.delete_tag("shared")
+        assert "shared" not in tmp_lib.get(paper.citation_key).tags
+        assert "shared" not in tmp_lib.get(paper2.citation_key).tags
+
+    def test_search_by_tag(self, tmp_lib: Library, tmp_path: Path, dummy_bib: Path):
+        paper = tmp_lib.add(bib_path=dummy_bib)
+        bib2 = make_bib(tmp_path, "b2.bib", "Another Paper", 2024, ["Doe, Jane"], [])
+        paper2 = tmp_lib.add(bib_path=bib2)
+        tmp_lib.add_paper_tag(paper.citation_key, "ml")
+        results = tmp_lib.search(tag="ml")
+        assert len(results) == 1
+        assert results[0].citation_key == paper.citation_key
+
+    def test_search_by_tag_no_results(self, tmp_lib: Library, dummy_bib: Path):
+        tmp_lib.add(bib_path=dummy_bib)
+        results = tmp_lib.search(tag="nonexistent")
+        assert results == []
+
+    def test_paper_tags_survive_roundtrip(self, tmp_lib: Library, dummy_bib: Path):
+        paper = tmp_lib.add(bib_path=dummy_bib)
+        tmp_lib.add_paper_tag(paper.citation_key, "ml")
+        loaded = Library(tmp_lib.library_dir.parent)
+        assert "ml" in loaded.get(paper.citation_key).tags

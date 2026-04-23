@@ -21,6 +21,7 @@ from liber.bibtex import (
 from liber.models import Paper
 
 _INDEX_FILE = ".liber_index.json"
+_TAGS_FILE = ".liber_tags.json"
 
 _STOP_WORDS = {
     "a", "an", "the", "of", "in", "on", "at", "to", "for", "with",
@@ -87,6 +88,7 @@ class Library:
     def __init__(self, library_dir: Path) -> None:
         self.library_dir = Path(library_dir).expanduser().resolve() / "library"
         self._index_path = self.library_dir / _INDEX_FILE
+        self._tags_path = self.library_dir / _TAGS_FILE
 
     # ------------------------------------------------------------------
     # Initialisation
@@ -236,6 +238,7 @@ class Library:
         author: Optional[str] = None,
         year: Optional[int] = None,
         keyword: Optional[str] = None,
+        tag: Optional[str] = None,
     ) -> list[Paper]:
         """Search papers by one or more criteria (all provided criteria must match).
 
@@ -262,7 +265,134 @@ class Library:
                 p for p in results if any(kw in k.lower() for k in p.keywords)
             ]
 
+        if tag is not None:
+            tg = tag.lower()
+            results = [p for p in results if tg in [t.lower() for t in p.tags]]
+
         return sorted(results, key=lambda p: (p.year, p.title.lower()))
+
+    # ------------------------------------------------------------------
+    # Tag management
+    # ------------------------------------------------------------------
+
+    def list_tags(self) -> list[str]:
+        """Return all known tags sorted alphabetically."""
+        return sorted(self._read_tags())
+
+    def create_tag(self, tag: str) -> None:
+        """Add *tag* to the global tag registry if it does not already exist.
+
+        Args:
+            tag: Tag name (must be non-empty after stripping whitespace).
+
+        Raises:
+            ValueError: If *tag* is empty or contains invalid characters.
+        """
+        tag = tag.strip()
+        if not tag:
+            raise ValueError("Tag name must not be empty.")
+        if not re.fullmatch(r"[A-Za-z0-9 _\-]+", tag):
+            raise ValueError(
+                f"Invalid tag name {tag!r}. "
+                "Use only letters, digits, spaces, hyphens, or underscores."
+            )
+        tags = self._read_tags()
+        if tag not in tags:
+            tags.append(tag)
+            self._write_tags(tags)
+
+    def delete_tag(self, tag: str) -> None:
+        """Remove *tag* from the global registry and from all papers.
+
+        Args:
+            tag: Tag name to delete.
+
+        Raises:
+            KeyError: If *tag* does not exist in the global registry.
+        """
+        tags = self._read_tags()
+        if tag not in tags:
+            raise KeyError(f"Tag '{tag}' not found.")
+        tags = [t for t in tags if t != tag]
+        self._write_tags(tags)
+
+        # Remove tag from all papers that have it
+        papers = self._read_index()
+        changed = False
+        for paper in papers:
+            if tag in paper.tags:
+                paper.tags = [t for t in paper.tags if t != tag]
+                changed = True
+        if changed:
+            self._write_index(papers)
+
+    def add_paper_tag(self, citation_key: str, tag: str) -> Paper:
+        """Assign *tag* to the paper identified by *citation_key*.
+
+        If *tag* does not yet exist in the global registry it is created
+        automatically.
+
+        Args:
+            citation_key: Citation key of the target paper.
+            tag: Tag name to assign.
+
+        Returns:
+            The updated :class:`Paper`.
+
+        Raises:
+            KeyError: If no paper with *citation_key* is found.
+            ValueError: If *tag* is empty or contains invalid characters.
+        """
+        tag = tag.strip()
+        if not tag:
+            raise ValueError("Tag name must not be empty.")
+        if not re.fullmatch(r"[A-Za-z0-9 _\-]+", tag):
+            raise ValueError(
+                f"Invalid tag name {tag!r}. "
+                "Use only letters, digits, spaces, hyphens, or underscores."
+            )
+
+        # Ensure tag exists globally
+        self.create_tag(tag)
+
+        papers = self._read_index()
+        idx = next(
+            (i for i, p in enumerate(papers) if p.citation_key == citation_key), None
+        )
+        if idx is None:
+            raise KeyError(f"No paper with citation key '{citation_key}' found.")
+
+        if tag not in papers[idx].tags:
+            papers[idx].tags.append(tag)
+            self._write_index(papers)
+
+        return papers[idx]
+
+    def remove_paper_tag(self, citation_key: str, tag: str) -> Paper:
+        """Remove *tag* from the paper identified by *citation_key*.
+
+        The tag is kept in the global registry; only the assignment is removed.
+
+        Args:
+            citation_key: Citation key of the target paper.
+            tag: Tag name to remove from the paper.
+
+        Returns:
+            The updated :class:`Paper`.
+
+        Raises:
+            KeyError: If no paper with *citation_key* is found.
+        """
+        papers = self._read_index()
+        idx = next(
+            (i for i, p in enumerate(papers) if p.citation_key == citation_key), None
+        )
+        if idx is None:
+            raise KeyError(f"No paper with citation key '{citation_key}' found.")
+
+        papers[idx].tags = [t for t in papers[idx].tags if t != tag]
+        self._write_index(papers)
+        return papers[idx]
 
     # ------------------------------------------------------------------
     # Notes
@@ -431,6 +561,16 @@ class Library:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _read_tags(self) -> list[str]:
+        if not self._tags_path.exists():
+            return []
+        with self._tags_path.open("r", encoding="utf-8") as fh:
+            return json.load(fh)
+
+    def _write_tags(self, tags: list[str]) -> None:
+        with self._tags_path.open("w", encoding="utf-8") as fh:
+            json.dump(sorted(tags), fh, indent=2, ensure_ascii=False)
 
     def _read_index(self) -> list[Paper]:
         if not self._index_path.exists():

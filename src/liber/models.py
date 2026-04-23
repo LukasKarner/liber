@@ -15,6 +15,7 @@ class Paper:
     keywords: list[str]
     doi: str
     citation_key: str
+    tags: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -24,6 +25,7 @@ class Paper:
             "keywords": self.keywords,
             "doi": self.doi,
             "citation_key": self.citation_key,
+            "tags": self.tags,
         }
 
     @classmethod
@@ -35,6 +37,7 @@ class Paper:
             keywords=data["keywords"],
             doi=data.get("doi", ""),
             citation_key=data["citation_key"],
+            tags=data.get("tags", []),
         )
 
     def to_bibtex(self) -> str:

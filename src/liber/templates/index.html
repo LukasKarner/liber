@@ -9,38 +9,76 @@
 </div>
 
 <div class="library-layout">
-  <aside class="card library-sidebar">
-    <h2 style="margin-bottom:1rem;">Filter Papers</h2>
-    <form method="get" action="{{ url_for('index') }}">
-      <input type="hidden" name="sort_by" value="{{ sort_by }}">
-      <input type="hidden" name="sort_dir" value="{{ sort_dir }}">
+  <div class="library-sidebar">
+    <aside class="card">
+      <h2 style="margin-bottom:1rem;">Filter Papers</h2>
+      <form method="get" action="{{ url_for('index') }}">
+        <input type="hidden" name="sort_by" value="{{ sort_by }}">
+        <input type="hidden" name="sort_dir" value="{{ sort_dir }}">
+        {% if tag_filter %}<input type="hidden" name="tag" value="{{ tag_filter }}">{% endif %}
 
-      <div class="form-group">
-        <label for="title">Title contains</label>
-        <input type="text" id="title" name="title" value="{{ title_filter }}">
-      </div>
+        <div class="form-group">
+          <label for="title">Title contains</label>
+          <input type="text" id="title" name="title" value="{{ title_filter }}">
+        </div>
 
-      <div class="form-group">
-        <label for="author">Author contains</label>
-        <input type="text" id="author" name="author" value="{{ author_filter }}">
-      </div>
+        <div class="form-group">
+          <label for="author">Author contains</label>
+          <input type="text" id="author" name="author" value="{{ author_filter }}">
+        </div>
 
-      <div class="form-group">
-        <label for="year">Year (exact)</label>
-        <input type="number" id="year" name="year" value="{{ year_filter }}" min="1000" max="9999">
-      </div>
+        <div class="form-group">
+          <label for="year">Year (exact)</label>
+          <input type="number" id="year" name="year" value="{{ year_filter }}" min="1000" max="9999">
+        </div>
 
-      <div class="form-group">
-        <label for="keyword">Keyword contains</label>
-        <input type="text" id="keyword" name="keyword" value="{{ keyword_filter }}">
-      </div>
+        <div class="form-group">
+          <label for="keyword">Keyword contains</label>
+          <input type="text" id="keyword" name="keyword" value="{{ keyword_filter }}">
+        </div>
 
-      <div class="filter-actions">
-        <button type="submit" class="btn btn-primary">Apply Filters</button>
-        <a class="btn btn-secondary" href="{{ clear_filters_url }}">Clear Filters</a>
+        <div class="filter-actions">
+          <button type="submit" class="btn btn-primary">Apply Filters</button>
+          <a class="btn btn-secondary" href="{{ clear_filters_url }}">Clear Filters</a>
+        </div>
+      </form>
+    </aside>
+
+    <aside class="card" style="margin-top:1.25rem;">
+      <h2 style="margin-bottom:1rem;">Tags</h2>
+      {% if all_tags %}
+      <div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:1rem;">
+        {% for t in all_tags %}
+        <div style="display:flex;align-items:center;gap:.2rem;">
+          <a href="{{ url_for('index', tag=t, sort_by=sort_by, sort_dir=sort_dir) }}"
+             class="tag-badge{% if tag_filter == t %} tag-badge-active{% endif %}"
+             title="Filter by '{{ t }}'">{{ t }}</a>
+          <form method="post" action="{{ url_for('tag_delete') }}" style="display:inline;"
+                onsubmit="return confirm('Delete tag \'{{ t }}\' from all papers?');">
+            <input type="hidden" name="tag" value="{{ t }}">
+            <button type="submit" class="tag-delete-btn" title="Delete tag">&times;</button>
+          </form>
+        </div>
+        {% endfor %}
       </div>
-    </form>
-  </aside>
+      {% if tag_filter %}
+      <p style="font-size:.8rem;color:#64748b;margin-bottom:.75rem;">
+        Filtering by tag: <strong>{{ tag_filter }}</strong>
+        &mdash; <a href="{{ url_for('index', sort_by=sort_by, sort_dir=sort_dir) }}">clear</a>
+      </p>
+      {% endif %}
+      {% else %}
+      <p style="font-size:.875rem;color:#94a3b8;margin-bottom:.75rem;">No tags yet.</p>
+      {% endif %}
+      <form method="post" action="{{ url_for('tag_create') }}" style="display:flex;gap:.4rem;align-items:flex-end;">
+        <div class="form-group" style="margin-bottom:0;flex:1;">
+          <label for="new-tag" style="font-size:.8rem;">New tag</label>
+          <input type="text" id="new-tag" name="tag" placeholder="e.g. survey" required>
+        </div>
+        <button type="submit" class="btn btn-primary" style="white-space:nowrap;">Add Tag</button>
+      </form>
+    </aside>
+  </div>
 
   <section>
     {% if papers %}
@@ -96,6 +134,7 @@
                 </span>
               </a>
             </th>
+            <th>Tags</th>
             <th></th>
           </tr>
         </thead>
@@ -106,6 +145,12 @@
             <td>{{ paper.year }}</td>
             <td><a href="{{ url_for('paper_detail', citation_key=paper.citation_key) }}">{{ paper.title }}</a></td>
             <td>{{ paper.authors | join('; ') }}</td>
+            <td>
+              {% for t in paper.tags %}
+              <a href="{{ url_for('index', tag=t, sort_by=sort_by, sort_dir=sort_dir) }}"
+                 class="tag-badge" style="margin-right:.2rem;" title="Filter by '{{ t }}'">{{ t }}</a>
+              {% endfor %}
+            </td>
             <td style="white-space:nowrap;">
               <a class="btn btn-secondary" style="font-size:.78rem;padding:.3rem .65rem;" href="{{ url_for('paper_detail', citation_key=paper.citation_key) }}">View</a>
             </td>
