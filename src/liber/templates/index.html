@@ -135,7 +135,6 @@
               </a>
             </th>
             <th>Tags</th>
-            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -150,9 +149,6 @@
               <a href="{{ url_for('index', tag=t, sort_by=sort_by, sort_dir=sort_dir) }}"
                  class="tag-badge" style="margin-right:.2rem;" title="Filter by '{{ t }}'">{{ t }}</a>
               {% endfor %}
-            </td>
-            <td style="white-space:nowrap;">
-              <a class="btn btn-secondary" style="font-size:.78rem;padding:.3rem .65rem;" href="{{ url_for('paper_detail', citation_key=paper.citation_key) }}">View</a>
             </td>
           </tr>
           {% endfor %}

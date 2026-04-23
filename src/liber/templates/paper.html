@@ -74,6 +74,16 @@
 </div>
 
 <div class="card">
+  <h2>Notes</h2>
+  {% if notes_content is not none %}
+    <pre style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:.35rem;padding:1rem;overflow-x:auto;font-size:.85rem;line-height:1.5;white-space:pre-wrap;">{{ notes_content }}</pre>
+  {% else %}
+    <p style="color:#94a3b8;font-size:.9rem;">No notes yet.</p>
+  {% endif %}
+  <a class="btn btn-secondary" style="margin-top:.75rem;" href="{{ url_for('paper_notes', citation_key=paper.citation_key) }}">Edit Notes</a>
+</div>
+
+<div class="card">
   <h2>BibTeX</h2>
   <pre id="bibtex-content" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:.35rem;padding:1rem;overflow-x:auto;font-size:.85rem;line-height:1.5;">{{ bibtex }}</pre>
   <button class="btn btn-secondary" style="margin-top:.75rem;" onclick="
@@ -82,16 +92,6 @@
     setTimeout(()=>this.textContent='Copy BibTeX',1500);
   ">Copy BibTeX</button>
   <a class="btn btn-secondary" style="margin-top:.75rem;" href="{{ url_for('paper_edit_bibtex', citation_key=paper.citation_key) }}">Edit BibTeX</a>
-</div>
-
-<div class="card">
-  <h2>Notes</h2>
-  {% if notes_content is not none %}
-    <pre style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:.35rem;padding:1rem;overflow-x:auto;font-size:.85rem;line-height:1.5;white-space:pre-wrap;">{{ notes_content }}</pre>
-  {% else %}
-    <p style="color:#94a3b8;font-size:.9rem;">No notes yet.</p>
-  {% endif %}
-  <a class="btn btn-secondary" style="margin-top:.75rem;" href="{{ url_for('paper_notes', citation_key=paper.citation_key) }}">Edit Notes</a>
 </div>
 
 <div class="card" style="border-color:#fecaca;">
