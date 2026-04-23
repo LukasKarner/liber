@@ -99,6 +99,14 @@ liber add paper.bib --key lecun2015deep
 liber add paper.bib --pdf paper.pdf --key lecun2015deep
 ```
 
+### Add a PDF to an existing paper
+
+Attach or replace the PDF for a paper that was added without one:
+
+```bash
+liber add-pdf vaswani2017attention paper.pdf
+```
+
 ### List all papers
 
 ```bash

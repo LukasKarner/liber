@@ -126,6 +126,35 @@ def add_cmd(
 
 
 # ---------------------------------------------------------------------------
+# add-pdf
+# ---------------------------------------------------------------------------
+
+
+@cli.command("add-pdf")
+@click.argument("citation_key")
+@click.argument("pdf", type=click.Path(exists=True, dir_okay=False))
+@click.pass_context
+def add_pdf_cmd(ctx: click.Context, citation_key: str, pdf: str) -> None:
+    """Add or replace the PDF for an existing paper.
+
+    CITATION_KEY is the key of the paper already in the library.
+    PDF is the path to the PDF file to import.
+
+    Example:
+
+    \b
+        liber add-pdf vaswani2017attention paper.pdf
+    """
+    lib = _get_library(ctx)
+    try:
+        lib.add_pdf(citation_key, Path(pdf))
+    except (KeyError, FileNotFoundError) as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    click.echo(f"PDF added for '{citation_key}'.")
+
+
+# ---------------------------------------------------------------------------
 # list
 # ---------------------------------------------------------------------------
 
