@@ -8,8 +8,8 @@ A command-line tool to manage academic research literature.
 Each paper lives in its own sub-directory named after its *citation key*
 and contains:
 
-- **`<key>.pdf`** — a copy of the paper
-- **`<key>.bib`** — a BibTeX entry
+- **`<key>.bib`** — a BibTeX entry *(required)*
+- **`<key>.pdf`** *(optional)* — a copy of the paper
 - **`<key>.md`** *(optional)* — personal notes
 
 A central index file (`.liber_index.json`) tracks every paper's title,
@@ -79,19 +79,32 @@ liber --library-dir /path/to/lib init
 
 ### Add a paper
 
+Only a BibTeX file is required. A PDF can be provided optionally.
+
 ```bash
-liber add paper.pdf paper.bib
+liber add paper.bib
+liber add paper.bib --pdf paper.pdf
 ```
 
 Metadata (title, year, authors, keywords, DOI) is extracted directly from the
 BibTeX file.  The citation key in the stored copy is rewritten to the
 author-year-title format; all other BibTeX fields are preserved unchanged.
-Papers without a DOI are added gracefully.
+Papers without a DOI are added gracefully.  If no PDF is supplied at add time,
+a PDF can be attached later via the web interface.
 
 Use `--key <custom_key>` to override the auto-generated citation key:
 
 ```bash
-liber add paper.pdf paper.bib --key lecun2015deep
+liber add paper.bib --key lecun2015deep
+liber add paper.bib --pdf paper.pdf --key lecun2015deep
+```
+
+### Add a PDF to an existing paper
+
+Attach or replace the PDF for a paper that was added without one:
+
+```bash
+liber add-pdf vaswani2017attention paper.pdf
 ```
 
 ### List all papers
@@ -134,7 +147,9 @@ liber note vaswani2017attention
 
 ### Start the web interface
 
-Launch a locally hosted website for browsing and managing your library:
+Launch a locally hosted website for browsing and managing your library.
+The web interface also allows you to add or replace the PDF for any paper
+after it has been added.
 
 ```bash
 liber serve
@@ -163,12 +178,12 @@ liber --library-dir /path/to/lib serve  # use a custom library directory
 └── library/
     ├── .liber_index.json
     ├── vaswani2017attention/
-    │   ├── vaswani2017attention.pdf
     │   ├── vaswani2017attention.bib
+    │   ├── vaswani2017attention.pdf   ← optional
     │   └── vaswani2017attention.md   ← optional notes
     └── lecun2015deep/
-        ├── lecun2015deep.pdf
-        └── lecun2015deep.bib
+        ├── lecun2015deep.bib
+        └── lecun2015deep.pdf         ← optional
 ```
 
 ## Running tests

@@ -7,7 +7,11 @@
   <div style="display:flex;gap:.5rem;">
     <a class="btn btn-secondary" href="{{ url_for('index') }}">← Back</a>
     <a class="btn btn-secondary" href="{{ url_for('paper_notes', citation_key=paper.citation_key) }}">Notes</a>
+    {% if has_pdf %}
     <a class="btn btn-primary" href="{{ url_for('paper_pdf', citation_key=paper.citation_key) }}" target="_blank">View PDF</a>
+    {% else %}
+    <a class="btn btn-secondary" href="{{ url_for('paper_add_pdf', citation_key=paper.citation_key) }}">Add PDF</a>
+    {% endif %}
   </div>
 </div>
 
