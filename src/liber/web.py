@@ -294,11 +294,15 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
         notes_path = lib.notes_path(citation_key)
         notes_content = notes_path.read_text(encoding="utf-8") if notes_path.exists() else None
 
+        pdf_file = lib.pdf_path(citation_key)
+        has_pdf = pdf_file.exists()
+
         return render_template(
             "paper.html",
             paper=paper,
             bibtex=bibtex,
             notes_content=notes_content,
+            has_pdf=has_pdf,
         )
 
     @app.route("/paper/<citation_key>/pdf")
@@ -397,31 +401,105 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
         bib_text = (request.form.get("bib_text") or "").strip()
         key = request.form.get("key") or None
 
-        has_pdf_file = pdf_file and pdf_file.filename
-        if not has_pdf_file and not pdf_url:
-            flash("Please select a PDF file or provide a URL to a PDF.", "error")
-            return render_template("add.html")
-
         has_bib_file = bib_file and bib_file.filename
         if not has_bib_file and not bib_text:
             flash("Please select a BibTeX (.bib) file or paste a BibTeX entry.", "error")
             return render_template("add.html")
 
+        has_pdf_file = pdf_file and pdf_file.filename
+        has_pdf = has_pdf_file or bool(pdf_url)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            bib_path = tmp / "upload.bib"
+
+            pdf_path: Optional[Path] = None
+            if has_pdf:
+                pdf_path = tmp / "upload.pdf"
+                if has_pdf_file:
+                    pdf_file.save(str(pdf_path))
+                else:
+                    # Validate and download from URL
+                    if not _is_safe_url(pdf_url):
+                        flash(
+                            "PDF URL must use http or https and point to a public host.",
+                            "error",
+                        )
+                        return render_template("add.html")
+                    try:
+                        with urllib.request.urlopen(pdf_url, timeout=30) as resp:  # noqa: S310
+                            chunks: list[bytes] = []
+                            total = 0
+                            while True:
+                                chunk = resp.read(_PDF_DOWNLOAD_CHUNK_SIZE)
+                                if not chunk:
+                                    break
+                                total += len(chunk)
+                                if total > _PDF_DOWNLOAD_MAX_BYTES:
+                                    flash(
+                                        "The PDF at the provided URL exceeds the"
+                                        " maximum allowed size (50 MB).",
+                                        "error",
+                                    )
+                                    return render_template("add.html")
+                                chunks.append(chunk)
+                        pdf_path.write_bytes(b"".join(chunks))
+                    except urllib.error.URLError as exc:
+                        flash(f"Failed to download PDF: {exc}", "error")
+                        return render_template("add.html")
+
+                # Basic content validation: PDFs must start with the %PDF magic bytes
+                with pdf_path.open("rb") as fh:
+                    header = fh.read(4)
+                if header != b"%PDF":
+                    flash("The file does not appear to be a valid PDF.", "error")
+                    return render_template("add.html")
+
+            if has_bib_file:
+                bib_file.save(str(bib_path))
+            else:
+                bib_path.write_text(bib_text, encoding="utf-8")
+
+            try:
+                paper = lib.add(bib_path=bib_path, pdf_path=pdf_path, citation_key=key)
+            except (FileExistsError, FileNotFoundError, ValueError) as exc:
+                flash(str(exc), "error")
+                return render_template("add.html")
+
+        flash(f"Paper '{paper.citation_key}' added successfully.", "success")
+        return redirect(url_for("paper_detail", citation_key=paper.citation_key))
+
+    @app.route("/paper/<citation_key>/add_pdf", methods=["GET", "POST"])
+    def paper_add_pdf(citation_key: str):
+        try:
+            paper = lib.get(citation_key)
+        except KeyError:
+            abort(404)
+
+        if request.method == "GET":
+            return render_template("add_pdf.html", paper=paper)
+
+        pdf_file = request.files.get("pdf")
+        pdf_url = (request.form.get("pdf_url") or "").strip()
+
+        has_pdf_file = pdf_file and pdf_file.filename
+        if not has_pdf_file and not pdf_url:
+            flash("Please select a PDF file or provide a URL to a PDF.", "error")
+            return render_template("add_pdf.html", paper=paper)
+
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)
             pdf_path = tmp / "upload.pdf"
-            bib_path = tmp / "upload.bib"
 
             if has_pdf_file:
                 pdf_file.save(str(pdf_path))
             else:
-                # Validate and download from URL
                 if not _is_safe_url(pdf_url):
                     flash(
                         "PDF URL must use http or https and point to a public host.",
                         "error",
                     )
-                    return render_template("add.html")
+                    return render_template("add_pdf.html", paper=paper)
                 try:
                     with urllib.request.urlopen(pdf_url, timeout=30) as resp:  # noqa: S310
                         chunks: list[bytes] = []
@@ -437,32 +515,26 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
                                     " maximum allowed size (50 MB).",
                                     "error",
                                 )
-                                return render_template("add.html")
+                                return render_template("add_pdf.html", paper=paper)
                             chunks.append(chunk)
                     pdf_path.write_bytes(b"".join(chunks))
                 except urllib.error.URLError as exc:
                     flash(f"Failed to download PDF: {exc}", "error")
-                    return render_template("add.html")
+                    return render_template("add_pdf.html", paper=paper)
 
-            # Basic content validation: PDFs must start with the %PDF magic bytes
             with pdf_path.open("rb") as fh:
                 header = fh.read(4)
             if header != b"%PDF":
                 flash("The file does not appear to be a valid PDF.", "error")
-                return render_template("add.html")
-
-            if has_bib_file:
-                bib_file.save(str(bib_path))
-            else:
-                bib_path.write_text(bib_text, encoding="utf-8")
+                return render_template("add_pdf.html", paper=paper)
 
             try:
-                paper = lib.add(pdf_path=pdf_path, bib_path=bib_path, citation_key=key)
-            except (FileExistsError, FileNotFoundError, ValueError) as exc:
+                lib.add_pdf(citation_key, pdf_path)
+            except (KeyError, FileNotFoundError) as exc:
                 flash(str(exc), "error")
-                return render_template("add.html")
+                return render_template("add_pdf.html", paper=paper)
 
-        flash(f"Paper '{paper.citation_key}' added successfully.", "success")
-        return redirect(url_for("paper_detail", citation_key=paper.citation_key))
+        flash("PDF added successfully.", "success")
+        return redirect(url_for("paper_detail", citation_key=citation_key))
 
     return app

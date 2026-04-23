@@ -74,8 +74,13 @@ def init_cmd(ctx: click.Context) -> None:
 
 
 @cli.command("add")
-@click.argument("pdf", type=click.Path(exists=True, dir_okay=False))
 @click.argument("bib", type=click.Path(exists=True, dir_okay=False))
+@click.option(
+    "--pdf",
+    default=None,
+    type=click.Path(exists=True, dir_okay=False),
+    help="Path to the PDF file to import (optional).",
+)
 @click.option(
     "--key",
     default=None,
@@ -84,14 +89,14 @@ def init_cmd(ctx: click.Context) -> None:
 @click.pass_context
 def add_cmd(
     ctx: click.Context,
-    pdf: str,
     bib: str,
+    pdf: Optional[str],
     key: Optional[str],
 ) -> None:
     """Add a paper to the library.
 
-    PDF is the path to the PDF file to import.
-    BIB is the path to the existing BibTeX file for the paper.
+    BIB is the path to the existing BibTeX file for the paper. A PDF can
+    optionally be provided via --pdf.
 
     Metadata (title, year, authors, keywords, doi) is extracted from the bib
     file.  The citation key is rewritten to the author-year-title format; all
@@ -100,15 +105,16 @@ def add_cmd(
     Example:
 
     \b
-        liber add paper.pdf paper.bib
-        liber add paper.pdf paper.bib --key lecun2015deep
+        liber add paper.bib
+        liber add paper.bib --pdf paper.pdf
+        liber add paper.bib --key lecun2015deep
     """
     lib = _get_library(ctx)
     lib.init()
     try:
         paper = lib.add(
-            pdf_path=Path(pdf),
             bib_path=Path(bib),
+            pdf_path=Path(pdf) if pdf else None,
             citation_key=key,
         )
     except (FileExistsError, FileNotFoundError, ValueError) as exc:

@@ -104,37 +104,40 @@ class Library:
 
     def add(
         self,
-        pdf_path: Path,
         bib_path: Path,
+        pdf_path: Optional[Path] = None,
         citation_key: Optional[str] = None,
     ) -> Paper:
-        """Add a paper to the library from a PDF and a BibTeX file.
+        """Add a paper to the library from a BibTeX file and an optional PDF.
 
-        Copies *pdf_path* into the library, writes a ``.bib`` file with the
-        citation key updated to the author-year-title format (all other BibTeX
-        fields are preserved as-is), and records the paper in the index.
+        Writes a ``.bib`` file with the citation key updated to the
+        author-year-title format (all other BibTeX fields are preserved
+        as-is), optionally copies *pdf_path* into the library, and records
+        the paper in the index.
 
         Args:
-            pdf_path: Path to the PDF file to import.
             bib_path: Path to an existing ``.bib`` file for the paper.
+            pdf_path: Path to the PDF file to import (optional).
             citation_key: Override the auto-generated citation key (optional).
 
         Returns:
             The newly created :class:`Paper` instance.
 
         Raises:
-            FileNotFoundError: If *pdf_path* or *bib_path* does not exist.
+            FileNotFoundError: If *bib_path* does not exist, or if *pdf_path*
+                is provided but does not exist.
             FileExistsError: If a paper with the same citation key already
                 exists in the library.
             ValueError: If required BibTeX fields (title, year, author) are
                 missing or malformed.
         """
-        pdf_path = Path(pdf_path).expanduser().resolve()
         bib_path = Path(bib_path).expanduser().resolve()
-        if not pdf_path.exists():
-            raise FileNotFoundError(f"PDF not found: {pdf_path}")
         if not bib_path.exists():
             raise FileNotFoundError(f"BibTeX file not found: {bib_path}")
+        if pdf_path is not None:
+            pdf_path = Path(pdf_path).expanduser().resolve()
+            if not pdf_path.exists():
+                raise FileNotFoundError(f"PDF not found: {pdf_path}")
 
         # Parse the bib file to extract metadata
         fields = parse_bib_file(bib_path)
@@ -155,9 +158,10 @@ class Library:
         paper_dir = self.library_dir / key
         paper_dir.mkdir(parents=True, exist_ok=False)
 
-        # Copy PDF
-        dest_pdf = paper_dir / f"{key}.pdf"
-        shutil.copy2(pdf_path, dest_pdf)
+        # Copy PDF (if provided)
+        if pdf_path is not None:
+            dest_pdf = paper_dir / f"{key}.pdf"
+            shutil.copy2(pdf_path, dest_pdf)
 
         # Write bib file: preserve original content, only update the key
         original_bib_text = bib_path.read_text(encoding="utf-8")
@@ -394,6 +398,35 @@ class Library:
         """
         self.get(citation_key)  # raises KeyError if not found
         return self.library_dir / citation_key / f"{citation_key}.bib"
+
+    def pdf_path(self, citation_key: str) -> Path:
+        """Return the path to the PDF file for *citation_key*.
+
+        The file may or may not exist on disk.
+
+        Raises:
+            KeyError: If no paper with *citation_key* exists in the index.
+        """
+        self.get(citation_key)  # raises KeyError if not found
+        return self.library_dir / citation_key / f"{citation_key}.pdf"
+
+    def add_pdf(self, citation_key: str, pdf_path: Path) -> None:
+        """Add or replace the PDF file for an existing paper.
+
+        Args:
+            citation_key: Citation key of the target paper.
+            pdf_path: Path to the PDF file to copy into the library.
+
+        Raises:
+            KeyError: If no paper with *citation_key* exists in the index.
+            FileNotFoundError: If *pdf_path* does not exist.
+        """
+        pdf_path = Path(pdf_path).expanduser().resolve()
+        if not pdf_path.exists():
+            raise FileNotFoundError(f"PDF not found: {pdf_path}")
+        self.get(citation_key)  # raises KeyError if not found
+        dest_pdf = self.library_dir / citation_key / f"{citation_key}.pdf"
+        shutil.copy2(pdf_path, dest_pdf)
 
     # ------------------------------------------------------------------
     # Internal helpers
