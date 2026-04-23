@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Library — liber{% endblock %}
+{% block main_class %}library-main{% endblock %}
 
 {% block content %}
 <div class="page-header">
@@ -7,37 +8,123 @@
   <a class="btn btn-primary" href="{{ url_for('add') }}">+ Add Paper</a>
 </div>
 
-{% if papers %}
-<div class="card" style="padding:0;overflow:hidden;">
-  <table>
-    <thead>
-      <tr>
-        <th>Citation Key</th>
-        <th>Year</th>
-        <th>Title</th>
-        <th>Authors</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for paper in papers %}
-      <tr>
-        <td><span class="key-badge">{{ paper.citation_key }}</span></td>
-        <td>{{ paper.year }}</td>
-        <td><a href="{{ url_for('paper_detail', citation_key=paper.citation_key) }}">{{ paper.title }}</a></td>
-        <td>{{ paper.authors | join('; ') }}</td>
-        <td style="white-space:nowrap;">
-          <a class="btn btn-secondary" style="font-size:.78rem;padding:.3rem .65rem;" href="{{ url_for('paper_detail', citation_key=paper.citation_key) }}">View</a>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<div class="library-layout">
+  <aside class="card library-sidebar">
+    <h2 style="margin-bottom:1rem;">Filter Papers</h2>
+    <form method="get" action="{{ url_for('index') }}">
+      <input type="hidden" name="sort_by" value="{{ sort_by }}">
+      <input type="hidden" name="sort_dir" value="{{ sort_dir }}">
+
+      <div class="form-group">
+        <label for="title">Title contains</label>
+        <input type="text" id="title" name="title" value="{{ title_filter }}">
+      </div>
+
+      <div class="form-group">
+        <label for="author">Author contains</label>
+        <input type="text" id="author" name="author" value="{{ author_filter }}">
+      </div>
+
+      <div class="form-group">
+        <label for="year">Year (exact)</label>
+        <input type="number" id="year" name="year" value="{{ year_filter }}" min="1000" max="9999">
+      </div>
+
+      <div class="form-group">
+        <label for="keyword">Keyword contains</label>
+        <input type="text" id="keyword" name="keyword" value="{{ keyword_filter }}">
+      </div>
+
+      <div class="filter-actions">
+        <button type="submit" class="btn btn-primary">Apply Filters</button>
+        <a class="btn btn-secondary" href="{{ clear_filters_url }}">Clear Filters</a>
+      </div>
+    </form>
+  </aside>
+
+  <section>
+    {% if papers %}
+    <div class="card table-card">
+      <table>
+        <thead>
+          <tr>
+            <th>
+              <a class="sort-link" href="{{ sort_links['citation_key'] }}">
+                Citation Key
+                <span class="sort-icon{% if sort_by == 'citation_key' %} active{% endif %}">
+                  {% if sort_by == 'citation_key' %}
+                    {% if sort_dir == 'asc' %}&uarr;{% else %}&darr;{% endif %}
+                  {% else %}
+                    &harr;
+                  {% endif %}
+                </span>
+              </a>
+            </th>
+            <th>
+              <a class="sort-link" href="{{ sort_links['year'] }}">
+                Year
+                <span class="sort-icon{% if sort_by == 'year' %} active{% endif %}">
+                  {% if sort_by == 'year' %}
+                    {% if sort_dir == 'asc' %}&uarr;{% else %}&darr;{% endif %}
+                  {% else %}
+                    &harr;
+                  {% endif %}
+                </span>
+              </a>
+            </th>
+            <th>
+              <a class="sort-link" href="{{ sort_links['title'] }}">
+                Title
+                <span class="sort-icon{% if sort_by == 'title' %} active{% endif %}">
+                  {% if sort_by == 'title' %}
+                    {% if sort_dir == 'asc' %}&uarr;{% else %}&darr;{% endif %}
+                  {% else %}
+                    &harr;
+                  {% endif %}
+                </span>
+              </a>
+            </th>
+            <th>
+              <a class="sort-link" href="{{ sort_links['authors'] }}">
+                Authors
+                <span class="sort-icon{% if sort_by == 'authors' %} active{% endif %}">
+                  {% if sort_by == 'authors' %}
+                    {% if sort_dir == 'asc' %}&uarr;{% else %}&darr;{% endif %}
+                  {% else %}
+                    &harr;
+                  {% endif %}
+                </span>
+              </a>
+            </th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for paper in papers %}
+          <tr>
+            <td><span class="key-badge">{{ paper.citation_key }}</span></td>
+            <td>{{ paper.year }}</td>
+            <td><a href="{{ url_for('paper_detail', citation_key=paper.citation_key) }}">{{ paper.title }}</a></td>
+            <td>{{ paper.authors | join('; ') }}</td>
+            <td style="white-space:nowrap;">
+              <a class="btn btn-secondary" style="font-size:.78rem;padding:.3rem .65rem;" href="{{ url_for('paper_detail', citation_key=paper.citation_key) }}">View</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <div class="empty">
+        {% if has_filters %}
+          <p>No papers matched your filters.</p>
+          <p style="margin-top:.75rem;"><a href="{{ clear_filters_url }}">Clear filters and show all papers</a></p>
+        {% else %}
+          <p>The library is empty.</p>
+          <p style="margin-top:.75rem;"><a href="{{ url_for('add') }}">Add your first paper →</a></p>
+        {% endif %}
+      </div>
+    {% endif %}
+  </section>
 </div>
-{% else %}
-  <div class="empty">
-    <p>The library is empty.</p>
-    <p style="margin-top:.75rem;"><a href="{{ url_for('add') }}">Add your first paper →</a></p>
-  </div>
-{% endif %}
 {% endblock %}

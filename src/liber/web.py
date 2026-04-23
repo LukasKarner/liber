@@ -104,31 +104,182 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
     # Routes
     # ------------------------------------------------------------------
 
+    def _sort_papers(papers: list, sort_by: str, sort_dir: str) -> list:
+        reverse = sort_dir == "desc"
+        if sort_by == "citation_key":
+            key_fn = lambda p: p.citation_key.lower()
+        elif sort_by == "year":
+            key_fn = lambda p: p.year
+        elif sort_by == "title":
+            key_fn = lambda p: p.title.lower()
+        elif sort_by == "authors":
+            key_fn = lambda p: "; ".join(p.authors).lower()
+        else:
+            key_fn = lambda p: p.citation_key.lower()
+        return sorted(papers, key=key_fn, reverse=reverse)
+
+    def _build_index_url(
+        *,
+        title: Optional[str],
+        author: Optional[str],
+        year: Optional[str],
+        keyword: Optional[str],
+        sort_by: str,
+        sort_dir: str,
+        updates: Optional[dict[str, Optional[str]]] = None,
+    ) -> str:
+        params: dict[str, str] = {
+            "sort_by": sort_by,
+            "sort_dir": sort_dir,
+        }
+        if title:
+            params["title"] = title
+        if author:
+            params["author"] = author
+        if year:
+            params["year"] = year
+        if keyword:
+            params["keyword"] = keyword
+
+        if updates:
+            for key, value in updates.items():
+                if value is None:
+                    params.pop(key, None)
+                else:
+                    params[key] = value
+
+        return f"{url_for('index')}?{urllib.parse.urlencode(params)}"
+
     @app.route("/")
     def index():
-        papers = lib.list_papers()
-        return render_template("index.html", papers=papers)
+        title = (request.args.get("title") or "").strip()
+        author = (request.args.get("author") or "").strip()
+        year_str = (request.args.get("year") or "").strip()
+        keyword = (request.args.get("keyword") or "").strip()
 
-    @app.route("/search")
-    def search():
-        title = request.args.get("title") or None
-        author = request.args.get("author") or None
-        year_str = request.args.get("year") or None
-        keyword = request.args.get("keyword") or None
+        sort_by = (request.args.get("sort_by") or "year").strip().lower()
+        if sort_by not in {"citation_key", "year", "title", "authors"}:
+            sort_by = "year"
 
-        searched = any(v is not None for v in (title, author, year_str, keyword))
-        papers = []
-        if searched:
+        sort_dir = (request.args.get("sort_dir") or "desc").strip().lower()
+        if sort_dir not in {"asc", "desc"}:
+            sort_dir = "desc"
+
+        has_filters = any((title, author, year_str, keyword))
+        if has_filters:
             year: Optional[int] = None
-            if year_str is not None:
+            if year_str:
                 try:
                     year = int(year_str)
                 except ValueError:
                     flash("Year must be a number.", "error")
-                    return render_template("search.html", papers=[], searched=False)
-            papers = lib.search(title=title, author=author, year=year, keyword=keyword)
+                    papers = _sort_papers(lib.list_papers(), sort_by, sort_dir)
+                    return render_template(
+                        "index.html",
+                        papers=papers,
+                        has_filters=False,
+                        title_filter=title,
+                        author_filter=author,
+                        year_filter=year_str,
+                        keyword_filter=keyword,
+                        sort_by=sort_by,
+                        sort_dir=sort_dir,
+                        sort_links={
+                            column: _build_index_url(
+                                title=title,
+                                author=author,
+                                year=year_str,
+                                keyword=keyword,
+                                sort_by=sort_by,
+                                sort_dir=sort_dir,
+                                updates={
+                                    "sort_by": column,
+                                    "sort_dir": (
+                                        "asc"
+                                        if sort_by == column and sort_dir == "desc"
+                                        else "desc"
+                                    ),
+                                },
+                            )
+                            for column in ["citation_key", "year", "title", "authors"]
+                        },
+                        clear_filters_url=_build_index_url(
+                            title=title,
+                            author=author,
+                            year=year_str,
+                            keyword=keyword,
+                            sort_by=sort_by,
+                            sort_dir=sort_dir,
+                            updates={
+                                "title": None,
+                                "author": None,
+                                "year": None,
+                                "keyword": None,
+                            },
+                        ),
+                    )
+            papers = lib.search(
+                title=title or None,
+                author=author or None,
+                year=year,
+                keyword=keyword or None,
+            )
+        else:
+            papers = lib.list_papers()
 
-        return render_template("search.html", papers=papers, searched=searched)
+        papers = _sort_papers(papers, sort_by, sort_dir)
+
+        sort_links = {
+            column: _build_index_url(
+                title=title,
+                author=author,
+                year=year_str,
+                keyword=keyword,
+                sort_by=sort_by,
+                sort_dir=sort_dir,
+                updates={
+                    "sort_by": column,
+                    "sort_dir": (
+                        "asc" if sort_by == column and sort_dir == "desc" else "desc"
+                    ),
+                },
+            )
+            for column in ["citation_key", "year", "title", "authors"]
+        }
+
+        clear_filters_url = _build_index_url(
+            title=title,
+            author=author,
+            year=year_str,
+            keyword=keyword,
+            sort_by=sort_by,
+            sort_dir=sort_dir,
+            updates={
+                "title": None,
+                "author": None,
+                "year": None,
+                "keyword": None,
+            },
+        )
+
+        return render_template(
+            "index.html",
+            papers=papers,
+            has_filters=has_filters,
+            title_filter=title,
+            author_filter=author,
+            year_filter=year_str,
+            keyword_filter=keyword,
+            sort_by=sort_by,
+            sort_dir=sort_dir,
+            sort_links=sort_links,
+            clear_filters_url=clear_filters_url,
+        )
+
+    @app.route("/search")
+    def search():
+        # Keep backward compatibility with old /search links.
+        return redirect(url_for("index", **request.args), code=302)
 
     @app.route("/paper/<citation_key>")
     def paper_detail(citation_key: str):
