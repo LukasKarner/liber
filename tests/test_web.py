@@ -219,3 +219,101 @@ def test_add_pdf_route_missing_input_shows_error(tmp_path: Path):
 
     assert response.status_code == 200
     assert "Please select a PDF file" in html
+
+
+# ---------------------------------------------------------------------------
+# Tag management routes
+# ---------------------------------------------------------------------------
+
+
+def test_index_shows_tags_pane(tmp_path: Path):
+    client = _client_for_library(_seed_library(tmp_path))
+
+    response = client.get("/")
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "Tags" in html
+    assert 'name="tag"' in html
+
+
+def test_tag_create_and_appears_in_index(tmp_path: Path):
+    client = _client_for_library(_seed_library(tmp_path))
+
+    response = client.post("/tags/create", data={"tag": "survey"}, follow_redirects=True)
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "survey" in html
+
+
+def test_tag_create_empty_shows_error(tmp_path: Path):
+    client = _client_for_library(_seed_library(tmp_path))
+
+    response = client.post("/tags/create", data={"tag": ""}, follow_redirects=True)
+    html = response.get_data(as_text=True)
+
+    assert "Please enter a tag name" in html
+
+
+def test_tag_delete(tmp_path: Path):
+    lib_dir = _seed_library(tmp_path)
+    lib = Library(lib_dir)
+    lib.create_tag("to-delete")
+    client = _client_for_library(lib_dir)
+
+    response = client.post("/tags/delete", data={"tag": "to-delete"}, follow_redirects=True)
+
+    assert response.status_code == 200
+    assert "to-delete" not in lib.list_tags()
+
+
+def test_paper_tag_add(tmp_path: Path):
+    lib_dir = _seed_library(tmp_path)
+    lib = Library(lib_dir)
+    key = lib.list_papers()[0].citation_key
+    client = _client_for_library(lib_dir)
+
+    response = client.post(
+        f"/paper/{key}/tags/add",
+        data={"tag": "my-tag"},
+        follow_redirects=True,
+    )
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "my-tag" in html
+    assert "my-tag" in lib.get(key).tags
+
+
+def test_paper_tag_remove(tmp_path: Path):
+    lib_dir = _seed_library(tmp_path)
+    lib = Library(lib_dir)
+    key = lib.list_papers()[0].citation_key
+    lib.add_paper_tag(key, "remove-me")
+    client = _client_for_library(lib_dir)
+
+    response = client.post(
+        f"/paper/{key}/tags/remove",
+        data={"tag": "remove-me"},
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 200
+    assert "remove-me" not in lib.get(key).tags
+
+
+def test_index_filter_by_tag(tmp_path: Path):
+    lib_dir = _seed_library(tmp_path)
+    lib = Library(lib_dir)
+    papers = lib.list_papers()
+    lib.add_paper_tag(papers[0].citation_key, "special")
+    client = _client_for_library(lib_dir)
+
+    response = client.get("/?tag=special")
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert papers[0].title in html
+    assert papers[1].title not in html
+

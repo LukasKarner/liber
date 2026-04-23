@@ -124,6 +124,7 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
         author: Optional[str],
         year: Optional[str],
         keyword: Optional[str],
+        tag: Optional[str],
         sort_by: str,
         sort_dir: str,
         updates: Optional[dict[str, Optional[str]]] = None,
@@ -140,6 +141,8 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
             params["year"] = year
         if keyword:
             params["keyword"] = keyword
+        if tag:
+            params["tag"] = tag
 
         if updates:
             for key, value in updates.items():
@@ -156,6 +159,7 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
         author = (request.args.get("author") or "").strip()
         year_str = (request.args.get("year") or "").strip()
         keyword = (request.args.get("keyword") or "").strip()
+        tag_filter = (request.args.get("tag") or "").strip()
 
         sort_by = (request.args.get("sort_by") or "year").strip().lower()
         if sort_by not in {"citation_key", "year", "title", "authors"}:
@@ -165,7 +169,7 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
         if sort_dir not in {"asc", "desc"}:
             sort_dir = "desc"
 
-        has_filters = any((title, author, year_str, keyword))
+        has_filters = any((title, author, year_str, keyword, tag_filter))
         if has_filters:
             year: Optional[int] = None
             if year_str:
@@ -182,6 +186,8 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
                         author_filter=author,
                         year_filter=year_str,
                         keyword_filter=keyword,
+                        tag_filter=tag_filter,
+                        all_tags=lib.list_tags(),
                         sort_by=sort_by,
                         sort_dir=sort_dir,
                         sort_links={
@@ -190,6 +196,7 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
                                 author=author,
                                 year=year_str,
                                 keyword=keyword,
+                                tag=tag_filter,
                                 sort_by=sort_by,
                                 sort_dir=sort_dir,
                                 updates={
@@ -208,6 +215,7 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
                             author=author,
                             year=year_str,
                             keyword=keyword,
+                            tag=tag_filter,
                             sort_by=sort_by,
                             sort_dir=sort_dir,
                             updates={
@@ -215,6 +223,7 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
                                 "author": None,
                                 "year": None,
                                 "keyword": None,
+                                "tag": None,
                             },
                         ),
                     )
@@ -223,6 +232,7 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
                 author=author or None,
                 year=year,
                 keyword=keyword or None,
+                tag=tag_filter or None,
             )
         else:
             papers = lib.list_papers()
@@ -235,6 +245,7 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
                 author=author,
                 year=year_str,
                 keyword=keyword,
+                tag=tag_filter,
                 sort_by=sort_by,
                 sort_dir=sort_dir,
                 updates={
@@ -252,6 +263,7 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
             author=author,
             year=year_str,
             keyword=keyword,
+            tag=tag_filter,
             sort_by=sort_by,
             sort_dir=sort_dir,
             updates={
@@ -259,6 +271,7 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
                 "author": None,
                 "year": None,
                 "keyword": None,
+                "tag": None,
             },
         )
 
@@ -270,6 +283,8 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
             author_filter=author,
             year_filter=year_str,
             keyword_filter=keyword,
+            tag_filter=tag_filter,
+            all_tags=lib.list_tags(),
             sort_by=sort_by,
             sort_dir=sort_dir,
             sort_links=sort_links,
@@ -297,12 +312,17 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
         pdf_file = lib.pdf_path(citation_key)
         has_pdf = pdf_file.exists()
 
+        all_tags = lib.list_tags()
+        assignable_tags = [t for t in all_tags if t not in paper.tags]
+
         return render_template(
             "paper.html",
             paper=paper,
             bibtex=bibtex,
             notes_content=notes_content,
             has_pdf=has_pdf,
+            all_tags=all_tags,
+            assignable_tags=assignable_tags,
         )
 
     @app.route("/paper/<citation_key>/pdf")
@@ -389,6 +409,60 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
 
         flash(f"Paper '{paper.citation_key}' removed.", "success")
         return redirect(url_for("index"))
+
+    @app.route("/tags/create", methods=["POST"])
+    def tag_create():
+        tag = (request.form.get("tag") or "").strip()
+        if not tag:
+            flash("Please enter a tag name.", "error")
+            return redirect(url_for("index"))
+        try:
+            lib.create_tag(tag)
+            flash(f"Tag '{tag}' created.", "success")
+        except ValueError as exc:
+            flash(str(exc), "error")
+        return redirect(url_for("index"))
+
+    @app.route("/tags/delete", methods=["POST"])
+    def tag_delete():
+        tag = (request.form.get("tag") or "").strip()
+        if not tag:
+            flash("No tag specified.", "error")
+            return redirect(url_for("index"))
+        try:
+            lib.delete_tag(tag)
+            flash(f"Tag '{tag}' deleted.", "success")
+        except KeyError as exc:
+            flash(str(exc), "error")
+        return redirect(url_for("index"))
+
+    @app.route("/paper/<citation_key>/tags/add", methods=["POST"])
+    def paper_tag_add(citation_key: str):
+        tag = (request.form.get("tag") or "").strip()
+        if not tag:
+            flash("Please enter a tag name.", "error")
+            return redirect(url_for("paper_detail", citation_key=citation_key))
+        try:
+            lib.add_paper_tag(citation_key, tag)
+            flash(f"Tag '{tag}' added.", "success")
+        except KeyError:
+            abort(404)
+        except ValueError as exc:
+            flash(str(exc), "error")
+        return redirect(url_for("paper_detail", citation_key=citation_key))
+
+    @app.route("/paper/<citation_key>/tags/remove", methods=["POST"])
+    def paper_tag_remove(citation_key: str):
+        tag = (request.form.get("tag") or "").strip()
+        if not tag:
+            flash("No tag specified.", "error")
+            return redirect(url_for("paper_detail", citation_key=citation_key))
+        try:
+            lib.remove_paper_tag(citation_key, tag)
+            flash(f"Tag '{tag}' removed.", "success")
+        except KeyError:
+            abort(404)
+        return redirect(url_for("paper_detail", citation_key=citation_key))
 
     @app.route("/add", methods=["GET", "POST"])
     def add():
