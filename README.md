@@ -5,9 +5,7 @@
 **liber** is a minimalist, local-first reference manager that keeps your research organised with precision and transparency.
 No lock-in, no clutter—just your literature, structured, searchable, and entirely yours.
 
----
-
-### ⚡ Quick example
+## ⚡ Quick example
 
 ```bash
 # initialise your library
@@ -18,18 +16,17 @@ liber add paper.bib --pdf paper.pdf
 
 # search your collection
 liber search --keyword transformers
+
+# launch web interface
+liber serve
 ```
 
----
-
-### 🧠 Why liber?
+## 🧠 Why liber?
 
 * **Transparent by design** — plain files, no hidden databases
 * **Reproducible workflow** — BibTeX + Markdown + predictable structure
 * **Local-first** — your data stays yours
 * **Fast & scriptable** — built for researchers and developers alike
-
----
 
 👉 Scroll down for installation and full usage.
 
@@ -58,6 +55,30 @@ Examples:
 
 - `vaswani2017attention` — Vaswani et al. (2017) "Attention Is All You Need"
 - `lecun2015deep` — LeCun et al. (2015) "Deep Learning"
+
+### Web interface features
+
+Launch a locally hosted website for browsing and managing your library.
+
+```bash
+liber serve
+```
+
+Then open <http://127.0.0.1:5000> in your browser.
+
+The web interface provides a graphical view of the same library and exposes all
+CLI features plus a few convenience additions, for example:
+
+- Browse and sort the full paper list by citation key, year, title, or authors.
+- Add papers by uploading a BibTeX file or pasting BibTeX text, with an
+  optional PDF upload or URL.
+- View the full details of each paper including the BibTeX entry and rendered
+  Markdown notes.
+- Edit and save the BibTeX entry and Markdown notes directly in the browser.
+- Manage tags: create and delete global tags, assign and remove tags on papers.
+- Export the full library or a filtered subset as a `.bib` file.
+
+For the full list of features, see the [Features](#features) section below.
 
 ## Installation
 
@@ -251,12 +272,6 @@ Launch a locally hosted website for browsing and managing your library.
 liber serve
 ```
 
-To keep the service running in the background after closing the terminal window:
-
-```bash
-nohup liber serve
-```
-
 Then open <http://127.0.0.1:5000> in your browser.
 
 Additional options:
@@ -267,7 +282,7 @@ liber serve --host 0.0.0.0         # listen on all network interfaces
 liber --library-dir /path/to/lib serve  # use a custom library directory
 ```
 
-#### Web interface features
+#### Features
 
 The web interface provides a graphical view of the same library and exposes all
 CLI features plus a few convenience additions:
