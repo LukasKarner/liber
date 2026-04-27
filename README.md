@@ -1,6 +1,6 @@
 # liber
 
-A command-line tool to manage academic research literature.
+Your private reference manager for academic research literature.
 
 ## Overview
 
