@@ -1,6 +1,37 @@
 # liber
 
-Your private reference manager for academic research literature.
+📚✨ *Stop losing track of papers.*
+
+**liber** is a minimalist, local-first reference manager that keeps your research organised with precision and transparency.
+No lock-in, no clutter—just your literature, structured, searchable, and entirely yours.
+
+---
+
+### ⚡ Quick example
+
+```bash
+# initialise your library
+liber init
+
+# add a paper
+liber add paper.bib --pdf paper.pdf
+
+# search your collection
+liber search --keyword transformers
+```
+
+---
+
+### 🧠 Why liber?
+
+* **Transparent by design** — plain files, no hidden databases
+* **Reproducible workflow** — BibTeX + Markdown + predictable structure
+* **Local-first** — your data stays yours
+* **Fast & scriptable** — built for researchers and developers alike
+
+---
+
+👉 Scroll down for installation and full usage.
 
 ## Overview
 
