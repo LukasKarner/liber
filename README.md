@@ -13,7 +13,7 @@ and contains:
 - **`<key>.md`** *(optional)* — personal notes
 
 A central index file (`.liber_index.json`) tracks every paper's title,
-publication year, authors, keywords, and DOI.
+publication year, authors, keywords, DOI, and tags.
 
 ### Citation-key format
 
@@ -89,8 +89,7 @@ liber add paper.bib --pdf paper.pdf
 Metadata (title, year, authors, keywords, DOI) is extracted directly from the
 BibTeX file.  The citation key in the stored copy is rewritten to the
 author-year-title format; all other BibTeX fields are preserved unchanged.
-Papers without a DOI are added gracefully.  If no PDF is supplied at add time,
-a PDF can be attached later via the web interface.
+Papers without a DOI are added gracefully.
 
 Use `--key <custom_key>` to override the auto-generated citation key:
 
@@ -107,6 +106,14 @@ Attach or replace the PDF for a paper that was added without one:
 liber add-pdf vaswani2017attention paper.pdf
 ```
 
+### Delete the PDF of a paper
+
+Remove the PDF file for a paper while keeping the entry and BibTeX file:
+
+```bash
+liber delete-pdf vaswani2017attention
+```
+
 ### List all papers
 
 ```bash
@@ -120,14 +127,36 @@ liber search --keyword transformers
 liber search --author Vaswani
 liber search --year 2017
 liber search --title "attention"
+liber search --tag "machine learning"
 # combine filters (AND logic)
 liber search --keyword transformers --year 2019
 ```
 
 ### Show paper details
 
+Displays the citation key, title, year, authors, keywords, tags, DOI, PDF
+status, directory, and notes status:
+
 ```bash
 liber show vaswani2017attention
+```
+
+### Rename a citation key
+
+Rename a paper's citation key — all associated files and the BibTeX entry are
+updated automatically:
+
+```bash
+liber rename-key vaswani2017attention attention2017vaswani
+```
+
+### Edit a BibTeX entry
+
+Open the stored BibTeX file in `$EDITOR` (default: `nano`).  After saving, the
+index is updated from the new content:
+
+```bash
+liber edit-bibtex vaswani2017attention
 ```
 
 ### Remove a paper
@@ -145,11 +174,47 @@ Opens the paper's Markdown notes file in `$EDITOR` (default: `nano`).
 liber note vaswani2017attention
 ```
 
+### Manage tags
+
+Tags are short labels (letters, digits, spaces, hyphens, underscores) used to
+organise papers.
+
+```bash
+# list all tags
+liber tag list
+
+# create a new tag
+liber tag create "machine learning"
+
+# delete a tag (removes it from all papers too)
+liber tag delete "machine learning"
+
+# assign a tag to a paper (creates the tag automatically if needed)
+liber tag add vaswani2017attention transformers
+
+# remove a tag from a paper (tag stays in global registry)
+liber tag remove vaswani2017attention transformers
+```
+
+### Export bibliographies
+
+Export all papers (or a filtered subset) as a combined BibTeX file:
+
+```bash
+# print to stdout
+liber export
+
+# write to a file
+liber export --output bibliography.bib
+
+# filter the export (same flags as search)
+liber export --tag transformers --output transformers.bib
+liber export --author Vaswani --year 2017 --output vaswani.bib
+```
+
 ### Start the web interface
 
 Launch a locally hosted website for browsing and managing your library.
-The web interface also allows you to add or replace the PDF for any paper
-after it has been added.
 
 ```bash
 liber serve
@@ -171,12 +236,33 @@ liber serve --host 0.0.0.0         # listen on all network interfaces
 liber --library-dir /path/to/lib serve  # use a custom library directory
 ```
 
+#### Web interface features
+
+The web interface provides a graphical view of the same library and exposes all
+CLI features plus a few convenience additions:
+
+- Browse and sort the full paper list by citation key, year, title, or authors.
+- Filter papers by title, author, year, keyword, or tag.
+- Add papers by uploading a BibTeX file or pasting BibTeX text, with an
+  optional PDF upload or URL.
+- View the full details of each paper including the rendered BibTeX entry and
+  Markdown notes.
+- Edit and save the Markdown notes for a paper directly in the browser.
+- Edit the BibTeX entry for a paper in the browser.
+- Rename a paper's citation key.
+- Upload or replace the PDF for a paper (file upload or URL).
+- Delete the PDF for a paper.
+- Remove a paper entirely from the library.
+- Manage tags: create and delete global tags, assign and remove tags on papers.
+- Export the full library or a filtered subset as a `.bib` file.
+
 ## Library structure
 
 ```txt
 ~/liber/
 └── library/
     ├── .liber_index.json
+    ├── .liber_tags.json
     ├── vaswani2017attention/
     │   ├── vaswani2017attention.bib
     │   ├── vaswani2017attention.pdf   ← optional
