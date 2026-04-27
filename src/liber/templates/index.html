@@ -6,7 +6,7 @@
 <div class="page-header">
   <h1>Library <small style="font-size:.75rem;color:#64748b;font-weight:400;">({{ papers|length }} paper{{ 's' if papers|length != 1 else '' }})</small></h1>
   <div style="display:flex;gap:.5rem;">
-    <a class="btn btn-secondary" href="{{ export_bib_url }}">Export Bibliography</a>
+    <a class="btn btn-primary" href="{{ export_bib_url }}">Export Bibliography</a>
     <a class="btn btn-primary" href="{{ url_for('add') }}">+ Add Paper</a>
   </div>
 </div>
