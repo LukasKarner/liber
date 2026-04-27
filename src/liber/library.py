@@ -540,6 +540,22 @@ class Library:
         self.get(citation_key)  # raises KeyError if not found
         return self.library_dir / citation_key / f"{citation_key}.pdf"
 
+    def delete_pdf(self, citation_key: str) -> None:
+        """Delete the PDF file for an existing paper.
+
+        Args:
+            citation_key: Citation key of the target paper.
+
+        Raises:
+            KeyError: If no paper with *citation_key* exists in the index.
+            FileNotFoundError: If no PDF file exists for this paper.
+        """
+        self.get(citation_key)  # raises KeyError if not found
+        pdf_path = self.library_dir / citation_key / f"{citation_key}.pdf"
+        if not pdf_path.exists():
+            raise FileNotFoundError(f"No PDF file found for '{citation_key}'.")
+        pdf_path.unlink()
+
     def add_pdf(self, citation_key: str, pdf_path: Path) -> None:
         """Add or replace the PDF file for an existing paper.
 

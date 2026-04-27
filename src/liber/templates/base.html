@@ -137,6 +137,39 @@
     }
     .tag-delete-btn:hover { color: #dc2626; }
 
+    /* Rendered markdown notes */
+    .notes-content { font-size: .9rem; line-height: 1.6; }
+    .notes-content h1, .notes-content h2, .notes-content h3,
+    .notes-content h4, .notes-content h5, .notes-content h6 {
+      margin: 1rem 0 .4rem; font-weight: 600;
+    }
+    .notes-content h1 { font-size: 1.3rem; }
+    .notes-content h2 { font-size: 1.1rem; }
+    .notes-content h3 { font-size: 1rem; }
+    .notes-content p { margin-bottom: .75rem; }
+    .notes-content ul, .notes-content ol { margin: .5rem 0 .75rem 1.5rem; }
+    .notes-content li { margin-bottom: .25rem; }
+    .notes-content code {
+      background: #f1f5f9; border: 1px solid #e2e8f0;
+      border-radius: .2rem; padding: .1rem .3rem;
+      font-size: .85em; font-family: monospace;
+    }
+    .notes-content pre {
+      background: #f8fafc; border: 1px solid #e2e8f0;
+      border-radius: .35rem; padding: 1rem;
+      overflow-x: auto; margin-bottom: .75rem;
+    }
+    .notes-content pre code { background: none; border: none; padding: 0; }
+    .notes-content blockquote {
+      border-left: 3px solid #cbd5e1; margin: .5rem 0;
+      padding: .25rem .75rem; color: #64748b;
+    }
+    .notes-content table { width: auto; margin-bottom: .75rem; }
+    .notes-content th, .notes-content td {
+      border: 1px solid #e2e8f0; padding: .35rem .6rem;
+    }
+    .notes-content a { color: #2563eb; }
+
     /* Citation key badge */
     .key-badge {
       display: inline-block;

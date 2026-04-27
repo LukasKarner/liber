@@ -362,6 +362,23 @@ class TestLibraryAddPdf:
             tmp_lib.add_pdf("ghost2000key", dummy_pdf)
 
 
+class TestLibraryDeletePdf:
+    def test_delete_pdf_removes_file(self, tmp_lib: Library, dummy_pdf: Path, dummy_bib: Path):
+        paper = tmp_lib.add(bib_path=dummy_bib, pdf_path=dummy_pdf)
+        assert tmp_lib.pdf_path(paper.citation_key).exists()
+        tmp_lib.delete_pdf(paper.citation_key)
+        assert not tmp_lib.pdf_path(paper.citation_key).exists()
+
+    def test_delete_pdf_no_pdf_raises(self, tmp_lib: Library, dummy_bib: Path):
+        paper = tmp_lib.add(bib_path=dummy_bib)
+        with pytest.raises(FileNotFoundError):
+            tmp_lib.delete_pdf(paper.citation_key)
+
+    def test_delete_pdf_nonexistent_key_raises(self, tmp_lib: Library):
+        with pytest.raises(KeyError):
+            tmp_lib.delete_pdf("ghost2000key")
+
+
 # ---------------------------------------------------------------------------
 # Library.rename_key
 # ---------------------------------------------------------------------------

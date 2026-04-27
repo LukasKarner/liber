@@ -317,3 +317,116 @@ def test_index_filter_by_tag(tmp_path: Path):
     assert papers[0].title in html
     assert papers[1].title not in html
 
+
+# ---------------------------------------------------------------------------
+# Export bibliography route
+# ---------------------------------------------------------------------------
+
+
+def test_export_bib_returns_bib_file(tmp_path: Path):
+    client = _client_for_library(_seed_library(tmp_path))
+
+    response = client.get("/export_bib")
+
+    assert response.status_code == 200
+    assert response.content_type.startswith("text/plain")
+    assert "bibliography.bib" in response.headers.get("Content-Disposition", "")
+    content = response.get_data(as_text=True)
+    # All three papers should be in the export
+    assert "@" in content  # at least one BibTeX entry
+    assert "Alpha Study" in content
+    assert "Beta Models" in content
+    assert "Gamma Networks" in content
+
+
+def test_export_bib_respects_filters(tmp_path: Path):
+    client = _client_for_library(_seed_library(tmp_path))
+
+    response = client.get("/export_bib?title=beta")
+
+    assert response.status_code == 200
+    content = response.get_data(as_text=True)
+    assert "Beta Models" in content
+    assert "Alpha Study" not in content
+    assert "Gamma Networks" not in content
+
+
+# ---------------------------------------------------------------------------
+# Delete PDF route
+# ---------------------------------------------------------------------------
+
+
+def test_delete_pdf_removes_file(tmp_path: Path):
+    lib_dir = _seed_library(tmp_path)
+    lib = Library(lib_dir)
+    key = lib.list_papers()[0].citation_key
+    client = _client_for_library(lib_dir)
+
+    assert lib.pdf_path(key).exists()
+
+    response = client.post(f"/paper/{key}/delete_pdf", follow_redirects=True)
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "PDF deleted" in html
+    assert not lib.pdf_path(key).exists()
+
+
+def test_delete_pdf_when_no_pdf_shows_error(tmp_path: Path):
+    lib_dir, key = _seed_library_no_pdf(tmp_path)
+    client = _client_for_library(lib_dir)
+
+    response = client.post(f"/paper/{key}/delete_pdf", follow_redirects=True)
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "No PDF file found to delete" in html
+
+
+def test_delete_pdf_unknown_key_returns_404(tmp_path: Path):
+    client = _client_for_library(_seed_library(tmp_path))
+
+    response = client.post("/paper/doesnotexist/delete_pdf")
+
+    assert response.status_code == 404
+
+
+def test_paper_detail_shows_delete_pdf_only_when_pdf_exists(tmp_path: Path):
+    lib_dir = _seed_library(tmp_path)
+    lib = Library(lib_dir)
+    key = lib.list_papers()[0].citation_key
+    client = _client_for_library(lib_dir)
+
+    # With PDF: should show Delete PDF button
+    response = client.get(f"/paper/{key}")
+    html = response.get_data(as_text=True)
+    assert "Delete PDF" in html
+
+    # Delete the PDF then check again
+    lib.delete_pdf(key)
+    response2 = client.get(f"/paper/{key}")
+    html2 = response2.get_data(as_text=True)
+    assert "Delete PDF" not in html2
+
+
+# ---------------------------------------------------------------------------
+# Markdown notes rendering
+# ---------------------------------------------------------------------------
+
+
+def test_paper_detail_renders_markdown_notes(tmp_path: Path):
+    lib_dir = _seed_library(tmp_path)
+    lib = Library(lib_dir)
+    key = lib.list_papers()[0].citation_key
+    notes_path = lib.notes_path(key)
+    notes_path.write_text("# My Heading\n\nSome **bold** text.", encoding="utf-8")
+    client = _client_for_library(lib_dir)
+
+    response = client.get(f"/paper/{key}")
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "<h1>My Heading</h1>" in html
+    assert "<strong>bold</strong>" in html
+    # Raw markdown should not appear in a pre block
+    assert "# My Heading" not in html
