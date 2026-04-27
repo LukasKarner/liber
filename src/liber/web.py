@@ -348,7 +348,10 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
 
         notes_path = lib.notes_path(citation_key)
         notes_content = notes_path.read_text(encoding="utf-8") if notes_path.exists() else None
-        notes_html = _markdown.markdown(notes_content, extensions=["fenced_code", "tables"]) if notes_content is not None else None
+        if notes_content is not None:
+            notes_html = _markdown.markdown(notes_content, extensions=["fenced_code", "tables"])
+        else:
+            notes_html = None
 
         pdf_file = lib.pdf_path(citation_key)
         has_pdf = pdf_file.exists()
@@ -457,8 +460,8 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
             lib.delete_pdf(citation_key)
         except KeyError:
             abort(404)
-        except FileNotFoundError as exc:
-            flash(str(exc), "error")
+        except FileNotFoundError:
+            flash("No PDF file found to delete.", "error")
             return redirect(url_for("paper_detail", citation_key=citation_key))
 
         flash("PDF deleted.", "success")

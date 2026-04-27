@@ -380,7 +380,7 @@ def test_delete_pdf_when_no_pdf_shows_error(tmp_path: Path):
     html = response.get_data(as_text=True)
 
     assert response.status_code == 200
-    assert "No PDF file found" in html
+    assert "No PDF file found to delete" in html
 
 
 def test_delete_pdf_unknown_key_returns_404(tmp_path: Path):
