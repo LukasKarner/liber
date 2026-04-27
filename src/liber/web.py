@@ -12,8 +12,10 @@ import urllib.request
 from pathlib import Path
 from typing import Optional
 
+import markdown as _markdown
 from flask import (
     Flask,
+    Response,
     abort,
     flash,
     redirect,
@@ -153,6 +155,30 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
 
         return f"{url_for('index')}?{urllib.parse.urlencode(params)}"
 
+    def _build_export_bib_url(
+        *,
+        title: Optional[str],
+        author: Optional[str],
+        year: Optional[str],
+        keyword: Optional[str],
+        tag: Optional[str],
+    ) -> str:
+        params: dict[str, str] = {}
+        if title:
+            params["title"] = title
+        if author:
+            params["author"] = author
+        if year:
+            params["year"] = year
+        if keyword:
+            params["keyword"] = keyword
+        if tag:
+            params["tag"] = tag
+        base = url_for("export_bib")
+        if params:
+            return f"{base}?{urllib.parse.urlencode(params)}"
+        return base
+
     @app.route("/")
     def index():
         title = (request.args.get("title") or "").strip()
@@ -226,6 +252,13 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
                                 "tag": None,
                             },
                         ),
+                        export_bib_url=_build_export_bib_url(
+                            title=title,
+                            author=author,
+                            year=year_str,
+                            keyword=keyword,
+                            tag=tag_filter,
+                        ),
                     )
             papers = lib.search(
                 title=title or None,
@@ -289,6 +322,13 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
             sort_dir=sort_dir,
             sort_links=sort_links,
             clear_filters_url=clear_filters_url,
+            export_bib_url=_build_export_bib_url(
+                title=title,
+                author=author,
+                year=year_str,
+                keyword=keyword,
+                tag=tag_filter,
+            ),
         )
 
     @app.route("/search")
@@ -308,6 +348,7 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
 
         notes_path = lib.notes_path(citation_key)
         notes_content = notes_path.read_text(encoding="utf-8") if notes_path.exists() else None
+        notes_html = _markdown.markdown(notes_content, extensions=["fenced_code", "tables"]) if notes_content is not None else None
 
         pdf_file = lib.pdf_path(citation_key)
         has_pdf = pdf_file.exists()
@@ -319,7 +360,7 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
             "paper.html",
             paper=paper,
             bibtex=bibtex,
-            notes_content=notes_content,
+            notes_html=notes_html,
             has_pdf=has_pdf,
             all_tags=all_tags,
             assignable_tags=assignable_tags,
@@ -409,6 +450,63 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
 
         flash(f"Paper '{paper.citation_key}' removed.", "success")
         return redirect(url_for("index"))
+
+    @app.route("/paper/<citation_key>/delete_pdf", methods=["POST"])
+    def paper_delete_pdf(citation_key: str):
+        try:
+            lib.delete_pdf(citation_key)
+        except KeyError:
+            abort(404)
+        except FileNotFoundError as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("paper_detail", citation_key=citation_key))
+
+        flash("PDF deleted.", "success")
+        return redirect(url_for("paper_detail", citation_key=citation_key))
+
+    @app.route("/export_bib")
+    def export_bib():
+        title = (request.args.get("title") or "").strip()
+        author = (request.args.get("author") or "").strip()
+        year_str = (request.args.get("year") or "").strip()
+        keyword = (request.args.get("keyword") or "").strip()
+        tag_filter = (request.args.get("tag") or "").strip()
+
+        has_filters = any((title, author, year_str, keyword, tag_filter))
+        if has_filters:
+            year: Optional[int] = None
+            if year_str:
+                try:
+                    year = int(year_str)
+                except ValueError:
+                    flash("Year must be a number.", "error")
+                    return redirect(url_for("index"))
+            papers = lib.search(
+                title=title or None,
+                author=author or None,
+                year=year,
+                keyword=keyword or None,
+                tag=tag_filter or None,
+            )
+        else:
+            papers = lib.list_papers()
+
+        entries: list[str] = []
+        for paper in papers:
+            bib_file = lib.bib_path(paper.citation_key)
+            if bib_file.exists():
+                entries.append(bib_file.read_text(encoding="utf-8").strip())
+            else:
+                entries.append(paper.to_bibtex().strip())
+
+        bib_content = "\n\n".join(entries)
+        return Response(
+            bib_content,
+            mimetype="text/plain",
+            headers={
+                "Content-Disposition": "attachment; filename=bibliography.bib",
+            },
+        )
 
     @app.route("/tags/create", methods=["POST"])
     def tag_create():

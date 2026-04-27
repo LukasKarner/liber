@@ -75,8 +75,8 @@
 
 <div class="card">
   <h2>Notes</h2>
-  {% if notes_content is not none %}
-    <pre style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:.35rem;padding:1rem;overflow-x:auto;font-size:.85rem;line-height:1.5;white-space:pre-wrap;">{{ notes_content }}</pre>
+  {% if notes_html is not none %}
+    <div class="notes-content">{{ notes_html | safe }}</div>
   {% else %}
     <p style="color:#94a3b8;font-size:.9rem;">No notes yet.</p>
   {% endif %}
@@ -106,6 +106,14 @@
     </div>
     <button type="submit" class="btn btn-danger">Rename Key</button>
   </form>
+  {% if has_pdf %}
+  <p style="font-size:.875rem;color:#64748b;margin-bottom:.75rem;">Permanently remove the PDF file for this paper.</p>
+  <form method="post" action="{{ url_for('paper_delete_pdf', citation_key=paper.citation_key) }}"
+        onsubmit="return confirm('Delete the PDF for {{ paper.citation_key }}? This cannot be undone.');"
+        style="margin-bottom:1.25rem;">
+    <button type="submit" class="btn btn-danger">Delete PDF</button>
+  </form>
+  {% endif %}
   <p style="font-size:.875rem;color:#64748b;margin-bottom:.75rem;">Permanently remove this paper and all its files from the library.</p>
   <form method="post" action="{{ url_for('paper_remove', citation_key=paper.citation_key) }}"
         onsubmit="return confirm('Remove {{ paper.citation_key }} and all its files? This cannot be undone.');">
