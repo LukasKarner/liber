@@ -137,6 +137,11 @@ class TestParseBibtex:
         with pytest.raises(ValueError, match="No BibTeX entry"):
             parse_bibtex("This is not a bib file")
 
+    def test_no_citation_key_raises(self):
+        """Entry with no citation key before comma raises ValueError (line 64)."""
+        with pytest.raises(ValueError, match="citation key"):
+            parse_bibtex("@article{ }")  # no comma → key_match fails
+
 
 # ---------------------------------------------------------------------------
 # get_* helpers

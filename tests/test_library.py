@@ -617,3 +617,41 @@ class TestLibraryTags:
         tmp_lib.add_paper_tag(paper.citation_key, "ml")
         loaded = Library(tmp_lib.library_dir.parent)
         assert "ml" in loaded.get(paper.citation_key).tags
+
+    def test_add_paper_tag_empty_raises(self, tmp_lib: Library, dummy_bib: Path):
+        """add_paper_tag raises ValueError when tag is empty (line 348)."""
+        paper = tmp_lib.add(bib_path=dummy_bib)
+        with pytest.raises(ValueError, match="empty"):
+            tmp_lib.add_paper_tag(paper.citation_key, "")
+
+    def test_add_paper_tag_invalid_chars_raises(self, tmp_lib: Library, dummy_bib: Path):
+        """add_paper_tag raises ValueError for tags with invalid characters (line 350)."""
+        paper = tmp_lib.add(bib_path=dummy_bib)
+        with pytest.raises(ValueError, match="Invalid"):
+            tmp_lib.add_paper_tag(paper.citation_key, "bad!tag#")
+
+
+# ---------------------------------------------------------------------------
+# Library._read_index without init
+# ---------------------------------------------------------------------------
+
+
+class TestLibraryReadIndex:
+    def test_read_index_returns_empty_when_no_index_file(self, tmp_path: Path):
+        """_read_index returns [] when the index file does not exist (line 593)."""
+        lib = Library(tmp_path / "newlib")
+        # Don't call init() — the library dir doesn't exist yet
+        # list_papers() calls _read_index() which should return [] gracefully
+        assert lib.list_papers() == []
+
+
+# ---------------------------------------------------------------------------
+# make_citation_key – author with only non-ASCII chars
+# ---------------------------------------------------------------------------
+
+
+class TestMakeCitationKeyEdgeCases:
+    def test_author_only_symbols_becomes_unknown(self):
+        """Author name with no [a-z] chars after stripping gives 'unknown' (line 56)."""
+        key = make_citation_key(["123456"], 2024, "Some Paper")
+        assert key == "unknown2024some"

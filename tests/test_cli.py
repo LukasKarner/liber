@@ -305,6 +305,18 @@ class TestEditBibtexCmd:
         result = runner.invoke(cli, _base_args(lib_dir) + ["edit-bibtex", "ghost"])
         assert result.exit_code != 0
 
+    def test_edit_bibtex_invalid_content_fails(self, runner, lib_dir, tmp_path, monkeypatch):
+        """When the editor writes invalid BibTeX, an error is reported (lines 402-403)."""
+        bib = make_bib(tmp_path, "ebinv.bib", "Edit Invalid", 2022, ["Author, A"])
+        runner.invoke(cli, _base_args(lib_dir) + ["add", str(bib)])
+
+        def write_invalid(args, **kw):
+            Path(args[-1]).write_text("this is not valid bibtex", encoding="utf-8")
+
+        monkeypatch.setattr("subprocess.run", write_invalid)
+        result = runner.invoke(cli, _base_args(lib_dir) + ["edit-bibtex", "author2022edit"])
+        assert result.exit_code != 0
+
 
 # ---------------------------------------------------------------------------
 # tag
@@ -463,4 +475,171 @@ class TestSearchTagFilter:
         result = runner.invoke(cli, _base_args(lib_dir) + ["search", "--tag", "nonexistenttag"])
         assert result.exit_code == 0
         assert "No papers" in result.output
+
+
+# ---------------------------------------------------------------------------
+# add-pdf
+# ---------------------------------------------------------------------------
+
+
+class TestAddPdfCmd:
+    def test_add_pdf_succeeds(self, runner, lib_dir, tmp_path, dummy_pdf):
+        """add-pdf command copies a PDF into an existing paper entry."""
+        bib = make_bib(tmp_path, "ap.bib", "Add PDF Paper", 2022, ["Author, A"])
+        runner.invoke(cli, _base_args(lib_dir) + ["add", str(bib)])
+        result = runner.invoke(
+            cli, _base_args(lib_dir) + ["add-pdf", "author2022add", str(dummy_pdf)]
+        )
+        assert result.exit_code == 0, result.output
+        assert "PDF added" in result.output
+        assert (lib_dir / "library" / "author2022add" / "author2022add.pdf").exists()
+
+    def test_add_pdf_nonexistent_key_fails(self, runner, lib_dir, dummy_pdf):
+        runner.invoke(cli, _base_args(lib_dir) + ["init"])
+        result = runner.invoke(
+            cli, _base_args(lib_dir) + ["add-pdf", "ghost2000key", str(dummy_pdf)]
+        )
+        assert result.exit_code != 0
+
+
+# ---------------------------------------------------------------------------
+# note
+# ---------------------------------------------------------------------------
+
+
+class TestNoteCmd:
+    def test_note_creates_file_and_opens_editor(self, runner, lib_dir, tmp_path, monkeypatch):
+        """note command creates the notes file and opens it in $EDITOR."""
+        bib = make_bib(tmp_path, "note.bib", "Note Paper", 2023, ["Author, A"])
+        runner.invoke(cli, _base_args(lib_dir) + ["add", str(bib)])
+
+        opened = []
+        monkeypatch.setattr(
+            "subprocess.run", lambda args, **kw: opened.append(args)
+        )
+        result = runner.invoke(cli, _base_args(lib_dir) + ["note", "author2023note"])
+        assert result.exit_code == 0
+        # editor was called with the notes file
+        assert len(opened) == 1
+        assert "author2023note.md" in opened[0][-1]
+
+    def test_note_existing_file_opened_without_overwrite(
+        self, runner, lib_dir, tmp_path, monkeypatch
+    ):
+        """If a notes file already exists its content is not overwritten."""
+        bib = make_bib(tmp_path, "notex.bib", "Note Existing", 2023, ["Author, A"])
+        runner.invoke(cli, _base_args(lib_dir) + ["add", str(bib)])
+        notes_path = lib_dir / "library" / "author2023note" / "author2023note.md"
+        notes_path.write_text("# Existing notes\n", encoding="utf-8")
+
+        monkeypatch.setattr("subprocess.run", lambda *a, **kw: None)
+        result = runner.invoke(cli, _base_args(lib_dir) + ["note", "author2023note"])
+        assert result.exit_code == 0
+        assert notes_path.read_text(encoding="utf-8") == "# Existing notes\n"
+
+    def test_note_nonexistent_key_fails(self, runner, lib_dir):
+        runner.invoke(cli, _base_args(lib_dir) + ["init"])
+        result = runner.invoke(cli, _base_args(lib_dir) + ["note", "ghost2000key"])
+        assert result.exit_code != 0
+
+
+# ---------------------------------------------------------------------------
+# edit-bibtex with actual changes
+# ---------------------------------------------------------------------------
+
+
+class TestEditBibtexCmdExtended:
+    def test_edit_bibtex_with_changes(self, runner, lib_dir, tmp_path, monkeypatch):
+        """When the editor modifies the bib content the index is updated."""
+        bib = make_bib(tmp_path, "ebc.bib", "Edit Changed", 2022, ["Author, A"])
+        runner.invoke(cli, _base_args(lib_dir) + ["add", str(bib)])
+
+        new_content = (
+            "@article{author2022edit,\n"
+            "  title  = {Updated Title},\n"
+            "  author = {Author, A},\n"
+            "  year   = {2022},\n"
+            "}\n"
+        )
+
+        def fake_editor(args, **kw):
+            # args is [editor, tmp_file_path] – write new content to tmp file
+            Path(args[-1]).write_text(new_content, encoding="utf-8")
+
+        monkeypatch.setattr("subprocess.run", fake_editor)
+        result = runner.invoke(
+            cli, _base_args(lib_dir) + ["edit-bibtex", "author2022edit"]
+        )
+        assert result.exit_code == 0, result.output
+        assert "updated" in result.output.lower()
+
+
+# ---------------------------------------------------------------------------
+# tag add – invalid chars / tag remove – nonexistent paper
+# ---------------------------------------------------------------------------
+
+
+class TestTagCmdsExtended:
+    def test_tag_add_invalid_chars_fails(self, runner, lib_dir, tmp_path):
+        """tag add with invalid chars in tag name fails (ValueError path)."""
+        bib = make_bib(tmp_path, "tagi.bib", "Tag Invalid", 2024, ["Author, A"])
+        runner.invoke(cli, _base_args(lib_dir) + ["add", str(bib)])
+        result = runner.invoke(
+            cli, _base_args(lib_dir) + ["tag", "add", "author2024tag", "bad!tag#"]
+        )
+        assert result.exit_code != 0
+
+    def test_tag_remove_nonexistent_paper_fails(self, runner, lib_dir):
+        """tag remove for a non-existent paper fails (KeyError path)."""
+        runner.invoke(cli, _base_args(lib_dir) + ["init"])
+        result = runner.invoke(
+            cli, _base_args(lib_dir) + ["tag", "remove", "ghost2000key", "ml"]
+        )
+        assert result.exit_code != 0
+
+
+# ---------------------------------------------------------------------------
+# export – fallback to paper.to_bibtex() when stored .bib is missing
+# ---------------------------------------------------------------------------
+
+
+class TestExportCmdFallback:
+    def test_export_paper_without_stored_bib(self, runner, lib_dir, tmp_path):
+        """Export falls back to paper.to_bibtex() when .bib file is absent (line 582)."""
+        bib = make_bib(tmp_path, "efb.bib", "Fallback Paper", 2020, ["Author, A"])
+        runner.invoke(cli, _base_args(lib_dir) + ["add", str(bib)])
+        # Remove the stored bib file to trigger the fallback path
+        stored_bib = lib_dir / "library" / "author2020fallback" / "author2020fallback.bib"
+        stored_bib.unlink()
+
+        result = runner.invoke(cli, _base_args(lib_dir) + ["export"])
+        assert result.exit_code == 0
+        assert "@article" in result.output
+        assert "Fallback Paper" in result.output
+
+
+# ---------------------------------------------------------------------------
+# serve
+# ---------------------------------------------------------------------------
+
+
+class TestServeCmd:
+    def test_serve_starts_app(self, runner, lib_dir, tmp_path, monkeypatch):
+        """serve command creates the Flask app and calls app.run (lines 644-651)."""
+        runs = []
+
+        class FakeApp:
+            def run(self, host, port, debug):
+                runs.append({"host": host, "port": port, "debug": debug})
+
+        monkeypatch.setattr("liber.web.create_app", lambda **kw: FakeApp())
+        result = runner.invoke(
+            cli,
+            _base_args(lib_dir) + ["serve", "--host", "127.0.0.1", "--port", "5001"],
+        )
+        assert result.exit_code == 0
+        assert "5001" in result.output
+        assert len(runs) == 1
+        assert runs[0]["port"] == 5001
+
 
