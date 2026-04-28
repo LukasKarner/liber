@@ -7,6 +7,9 @@ from pathlib import Path
 import pytest
 
 from liber.bibtex import (
+    _parse_fields,
+    _read_brace_content,
+    _read_quoted_content,
     get_authors,
     get_doi,
     get_keywords,
@@ -134,6 +137,11 @@ class TestParseBibtex:
         with pytest.raises(ValueError, match="No BibTeX entry"):
             parse_bibtex("This is not a bib file")
 
+    def test_no_citation_key_raises(self):
+        """Entry with no citation key before comma raises ValueError."""
+        with pytest.raises(ValueError, match="citation key"):
+            parse_bibtex("@article{ }")  # no comma → key_match fails
+
 
 # ---------------------------------------------------------------------------
 # get_* helpers
@@ -252,3 +260,138 @@ class TestParseBibFile:
     def test_missing_file_raises(self, tmp_path: Path):
         with pytest.raises(FileNotFoundError):
             parse_bib_file(tmp_path / "nonexistent.bib")
+
+
+# ---------------------------------------------------------------------------
+# get_authors – case-insensitive AND separator
+# ---------------------------------------------------------------------------
+
+
+class TestGetAuthorsExtended:
+    def test_uppercase_and_separator(self):
+        """'AND' (uppercase) must split authors correctly."""
+        fields = {"author": "Smith, John AND Doe, Jane"}
+        authors = get_authors(fields)
+        assert authors == ["Smith, John", "Doe, Jane"]
+
+    def test_mixed_case_and_separator(self):
+        """'And' (mixed case) must split authors correctly."""
+        fields = {"author": "Smith, John And Doe, Jane"}
+        authors = get_authors(fields)
+        assert authors == ["Smith, John", "Doe, Jane"]
+
+    def test_whitespace_around_and(self):
+        """Extra whitespace around 'and' is handled."""
+        fields = {"author": "  Smith, John  and  Doe, Jane  "}
+        authors = get_authors(fields)
+        assert authors == ["Smith, John", "Doe, Jane"]
+
+
+# ---------------------------------------------------------------------------
+# _read_brace_content – internal error paths
+# ---------------------------------------------------------------------------
+
+
+class TestReadBraceContent:
+    def test_non_brace_start_raises(self):
+        """Raises ValueError when position does not point to '{'."""
+        with pytest.raises(ValueError, match="Expected"):
+            _read_brace_content("x}", 0)
+
+    def test_unbalanced_braces_raises(self):
+        """Raises ValueError when closing brace is never found."""
+        with pytest.raises(ValueError, match="Unbalanced"):
+            _read_brace_content("{unclosed content", 0)
+
+    def test_balanced_braces_returns_content(self):
+        """Normal case: returns inner content and end position."""
+        content, end = _read_brace_content("{hello}", 0)
+        assert content == "hello"
+        assert end == 6  # index of closing '}'
+
+    def test_nested_braces(self):
+        """Nested braces are preserved in returned content."""
+        content, _ = _read_brace_content("{{nested}}", 0)
+        assert content == "{nested}"
+
+
+# ---------------------------------------------------------------------------
+# _read_quoted_content – internal error paths
+# ---------------------------------------------------------------------------
+
+
+class TestReadQuotedContent:
+    def test_non_quote_start_raises(self):
+        """Raises ValueError when position does not point to '\"'."""
+        with pytest.raises(ValueError, match="Expected"):
+            _read_quoted_content('x"hello"', 0)
+
+    def test_unterminated_quote_raises(self):
+        """Raises ValueError when closing quote is never found."""
+        with pytest.raises(ValueError, match="Unterminated"):
+            _read_quoted_content('"unclosed content', 0)
+
+    def test_basic_quoted_content(self):
+        """Normal case: returns inner content and end position."""
+        content, end = _read_quoted_content('"hello"', 0)
+        assert content == "hello"
+        assert end == 6
+
+
+# ---------------------------------------------------------------------------
+# _parse_fields – edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestParseFieldsEdgeCases:
+    def test_field_name_at_end_of_content_triggers_break(self):
+        """Field name with no value at end of content (line 228: i >= n → break)."""
+        # Content ends immediately after '= ' with no value
+        text = "@article{key, year =}"
+        # Should not raise; year field simply has no value
+        fields = parse_bibtex(text)
+        assert fields["_key"] == "key"
+        assert "year" not in fields
+
+    def test_bare_value_empty_skipped(self):
+        """Bare value starting with comma is skipped (lines 244-245)."""
+        # 'year = ,' means the bare value starts with comma → match fails → skip
+        text = (
+            "@article{key,\n"
+            "  year = ,\n"
+            "  title = {Bare Skip Test},\n"
+            "  author = {Author, A},\n"
+            "}"
+        )
+        fields = parse_bibtex(text)
+        assert fields["title"] == "Bare Skip Test"
+        assert "year" not in fields
+
+    def test_stray_non_field_chars_skipped(self):
+        """Characters that don't form a 'name = value' pair are skipped (lines 221-222)."""
+        text = (
+            "@article{key,\n"
+            "  ! stray char\n"
+            "  title = {Stray Test},\n"
+            "  author = {Author, A},\n"
+            "  year = {2024},\n"
+            "}"
+        )
+        fields = parse_bibtex(text)
+        assert fields["title"] == "Stray Test"
+        assert fields["year"] == "2024"
+
+    def test_semicolon_keywords_split(self):
+        """Keywords separated by semicolons are handled."""
+        fields = {"keywords": "deep learning; neural networks; attention"}
+        kws = get_keywords(fields)
+        assert "deep learning" in kws
+        assert "neural networks" in kws
+        assert "attention" in kws
+
+    def test_keyword_singular_field(self):
+        """'keyword' (singular) field is recognised as fallback."""
+        fields = {"keyword": "nlp, transformers"}
+        kws = get_keywords(fields)
+        assert "nlp" in kws
+        assert "transformers" in kws
