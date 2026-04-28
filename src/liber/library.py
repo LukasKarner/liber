@@ -23,6 +23,31 @@ from liber.models import Paper
 _INDEX_FILE = ".liber_index.json"
 _TAGS_FILE = ".liber_tags.json"
 
+_CITATION_KEY_RE = re.compile(r"[A-Za-z0-9_:\.\-]+")
+
+
+def _validate_citation_key(key: str) -> None:
+    """Raise :exc:`ValueError` if *key* is not a safe citation key.
+
+    A valid key consists of letters, digits, underscores, hyphens, colons, or
+    dots but must not contain the path-traversal sequence ``..``.
+
+    Raises:
+        ValueError: If *key* is empty, contains invalid characters, or contains
+            the path-traversal sequence ``..``.
+    """
+    if not key:
+        raise ValueError("Citation key must not be empty.")
+    if ".." in key:
+        raise ValueError(
+            f"Invalid citation key {key!r}: must not contain '..'."
+        )
+    if not _CITATION_KEY_RE.fullmatch(key):
+        raise ValueError(
+            f"Invalid citation key {key!r}. "
+            "Use only letters, digits, underscores, hyphens, colons, or dots."
+        )
+
 _STOP_WORDS = {
     "a", "an", "the", "of", "in", "on", "at", "to", "for", "with",
     "by", "from", "and", "or", "is", "are", "was", "were", "as", "its",
@@ -150,6 +175,8 @@ class Library:
         doi = get_doi(fields)
 
         key = citation_key or make_citation_key(authors, year, title)
+        if citation_key is not None:
+            _validate_citation_key(citation_key)
 
         papers = self._read_index()
         if any(p.citation_key == key for p in papers):
