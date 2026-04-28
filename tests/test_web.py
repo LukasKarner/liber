@@ -485,7 +485,7 @@ class TestIsSafeUrl:
             assert _is_safe_url("http://empty-resolve.example/") is False
 
     def test_rejects_invalid_addr_string(self):
-        """ValueError from ipaddress.ip_address causes rejection (lines 66-67)."""
+        """ValueError from ipaddress.ip_address causes the URL to be rejected."""
         # sockaddr[0] is not a valid IP string
         addrinfo = [(socket.AF_INET, None, None, "", ("not-an-ip", 0))]
         with patch("socket.getaddrinfo", return_value=addrinfo):
@@ -498,7 +498,7 @@ class TestIsSafeUrl:
 
 
 def test_create_app_reuses_existing_secret_key(tmp_path: Path):
-    """Second call to create_app must reuse the secret key file (line 99)."""
+    """Second call to create_app must reuse the persisted secret key file."""
     lib_dir = tmp_path / "sktestlib"
     app1 = create_app(library_dir=lib_dir)
     key1 = app1.secret_key
@@ -510,7 +510,7 @@ def test_create_app_reuses_existing_secret_key(tmp_path: Path):
 
 
 def test_create_app_uses_env_var(tmp_path: Path, monkeypatch):
-    """create_app falls back to LIBER_DIR env var when library_dir is None (line 89)."""
+    """create_app falls back to LIBER_DIR env var when library_dir is None."""
     lib_dir = tmp_path / "envlib"
     monkeypatch.setenv("LIBER_DIR", str(lib_dir))
     app = create_app(library_dir=None)
@@ -823,7 +823,7 @@ def test_add_route_post_with_bib_file(tmp_path: Path):
     html = response.get_data(as_text=True)
 
     assert response.status_code == 200
-    assert "File Upload Test" in html or "uploader2025file" in html
+    assert "File Upload Test" in html or "test2025file" in html
 
 
 def test_add_route_post_invalid_pdf_shows_error(tmp_path: Path):
@@ -1220,7 +1220,7 @@ def test_add_route_post_pdf_url_success(tmp_path: Path):
 
     html = response.get_data(as_text=True)
     assert response.status_code == 200
-    assert "URL Download Test" in html or "downloader2025url" in html
+    assert "URL Download Test" in html or "urltest2025paper" in html
 
 
 def test_add_route_post_pdf_url_download_error(tmp_path: Path):

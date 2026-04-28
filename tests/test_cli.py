@@ -306,7 +306,7 @@ class TestEditBibtexCmd:
         assert result.exit_code != 0
 
     def test_edit_bibtex_invalid_content_fails(self, runner, lib_dir, tmp_path, monkeypatch):
-        """When the editor writes invalid BibTeX, an error is reported (lines 402-403)."""
+        """When the editor writes invalid BibTeX, an error is reported."""
         bib = make_bib(tmp_path, "ebinv.bib", "Edit Invalid", 2022, ["Author, A"])
         runner.invoke(cli, _base_args(lib_dir) + ["add", str(bib)])
 

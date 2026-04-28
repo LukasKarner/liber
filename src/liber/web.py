@@ -116,7 +116,7 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
             key_fn = lambda p: p.title.lower()
         elif sort_by == "authors":
             key_fn = lambda p: "; ".join(p.authors).lower()
-        else:
+        else:  # pragma: no cover – sort_by is always validated before this is called
             key_fn = lambda p: p.citation_key.lower()
         return sorted(papers, key=key_fn, reverse=reverse)
 

@@ -138,7 +138,7 @@ class TestParseBibtex:
             parse_bibtex("This is not a bib file")
 
     def test_no_citation_key_raises(self):
-        """Entry with no citation key before comma raises ValueError (line 64)."""
+        """Entry with no citation key before comma raises ValueError."""
         with pytest.raises(ValueError, match="citation key"):
             parse_bibtex("@article{ }")  # no comma → key_match fails
 
@@ -269,7 +269,7 @@ class TestParseBibFile:
 
 class TestGetAuthorsExtended:
     def test_uppercase_and_separator(self):
-        """'AND' (uppercase) must split authors correctly (line 64)."""
+        """'AND' (uppercase) must split authors correctly."""
         fields = {"author": "Smith, John AND Doe, Jane"}
         authors = get_authors(fields)
         assert authors == ["Smith, John", "Doe, Jane"]
