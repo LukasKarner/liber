@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
 
-from liber.cli import cli
+from liber.cli import cli, _CONFIG_FILE, _read_saved_library_dir, _save_library_dir
 from tests.conftest import make_bib
 
 
@@ -48,15 +49,57 @@ def _base_args(lib_dir: Path) -> list:
 
 
 class TestInitCmd:
-    def test_init_creates_directory(self, runner, lib_dir):
+    def test_init_creates_directory(self, runner, lib_dir, monkeypatch, tmp_path):
+        config_file = tmp_path / "config.json"
+        monkeypatch.setattr("liber.cli._CONFIG_FILE", config_file)
         result = runner.invoke(cli, _base_args(lib_dir) + ["init"])
         assert result.exit_code == 0
         assert lib_dir.is_dir()
 
-    def test_init_idempotent(self, runner, lib_dir):
+    def test_init_idempotent(self, runner, lib_dir, monkeypatch, tmp_path):
+        config_file = tmp_path / "config.json"
+        monkeypatch.setattr("liber.cli._CONFIG_FILE", config_file)
         runner.invoke(cli, _base_args(lib_dir) + ["init"])
         result = runner.invoke(cli, _base_args(lib_dir) + ["init"])
         assert result.exit_code == 0
+
+    def test_init_saves_library_dir_to_config(self, runner, lib_dir, monkeypatch, tmp_path):
+        """init saves the library directory so subsequent commands use it."""
+        config_file = tmp_path / "config.json"
+        monkeypatch.setattr("liber.cli._CONFIG_FILE", config_file)
+        result = runner.invoke(cli, _base_args(lib_dir) + ["init"])
+        assert result.exit_code == 0
+        assert config_file.exists()
+        data = json.loads(config_file.read_text())
+        assert Path(data["library_dir"]) == lib_dir
+
+
+# ---------------------------------------------------------------------------
+# config helpers
+# ---------------------------------------------------------------------------
+
+
+class TestConfigHelpers:
+    def test_read_saved_library_dir_missing_file(self, monkeypatch, tmp_path):
+        """Returns None when no config file exists yet."""
+        config_file = tmp_path / "nonexistent" / "config.json"
+        monkeypatch.setattr("liber.cli._CONFIG_FILE", config_file)
+        assert _read_saved_library_dir() is None
+
+    def test_read_saved_library_dir_malformed_json(self, monkeypatch, tmp_path):
+        """Returns None when the config file contains invalid JSON."""
+        config_file = tmp_path / "config.json"
+        config_file.write_text("not-valid-json", encoding="utf-8")
+        monkeypatch.setattr("liber.cli._CONFIG_FILE", config_file)
+        assert _read_saved_library_dir() is None
+
+    def test_save_and_read_roundtrip(self, monkeypatch, tmp_path):
+        """Saved directory can be read back correctly."""
+        config_file = tmp_path / "config.json"
+        monkeypatch.setattr("liber.cli._CONFIG_FILE", config_file)
+        path = tmp_path / "mylib"
+        _save_library_dir(path)
+        assert _read_saved_library_dir() == path
 
 
 # ---------------------------------------------------------------------------
@@ -641,5 +684,32 @@ class TestServeCmd:
         assert "5001" in result.output
         assert len(runs) == 1
         assert runs[0]["port"] == 5001
+
+    def test_serve_uses_saved_library_dir(self, runner, lib_dir, monkeypatch, tmp_path):
+        """serve uses the directory saved by init when --library-dir is omitted."""
+        config_file = tmp_path / "config.json"
+        monkeypatch.setattr("liber.cli._CONFIG_FILE", config_file)
+
+        # First, init with a custom directory so it gets saved to the config
+        runner.invoke(cli, _base_args(lib_dir) + ["init"])
+        assert config_file.exists()
+
+        # Now serve WITHOUT --library-dir; it should use the saved dir
+        received_dirs = []
+
+        def fake_create_app(**kw):
+            received_dirs.append(kw.get("library_dir"))
+
+            class FakeApp:
+                def run(self, host, port, debug):
+                    pass
+
+            return FakeApp()
+
+        monkeypatch.setattr("liber.web.create_app", fake_create_app)
+        result = runner.invoke(cli, ["serve"])
+        assert result.exit_code == 0
+        assert received_dirs, "create_app was not called"
+        assert received_dirs[0] == lib_dir
 
 
