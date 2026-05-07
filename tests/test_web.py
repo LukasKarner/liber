@@ -920,7 +920,7 @@ def test_add_route_post_unsafe_url_shows_error(tmp_path: Path):
     html = response.get_data(as_text=True)
 
     assert response.status_code == 200
-    assert "public host" in html
+    assert "importing PDFs from URLs is disabled" in html
 
 
 # ---------------------------------------------------------------------------
@@ -947,7 +947,7 @@ def test_add_pdf_url_unsafe_shows_error(tmp_path: Path):
     html = response.get_data(as_text=True)
 
     assert response.status_code == 200
-    assert "public host" in html
+    assert "importing PDFs from URLs is disabled" in html
 
 
 def test_add_pdf_invalid_file_content_shows_error(tmp_path: Path):
@@ -1185,32 +1185,12 @@ def test_export_bib_fallback_to_bibtex_method(tmp_path: Path):
 
 
 # ---------------------------------------------------------------------------
-# PDF URL download paths – /add and /paper/<key>/add_pdf (mocked urlopen)
+# PDF URL imports are disabled for security in /add and /paper/<key>/add_pdf
 # ---------------------------------------------------------------------------
 
 
-class _FakeHTTPResponse:
-    """Minimal fake for urllib.request.urlopen context manager."""
-
-    def __init__(self, data: bytes):
-        self._data = data
-        self._offset = 0
-
-    def read(self, size: int) -> bytes:
-        chunk = self._data[self._offset: self._offset + size]
-        self._offset += size
-        return chunk
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *args):
-        pass
-
-
-def test_add_route_post_pdf_url_success(tmp_path: Path):
-    """Providing a valid public PDF URL downloads and stores the PDF (lines 604-624)."""
-    lib_dir = tmp_path / "addurllib"
+def test_add_route_post_pdf_url_is_disabled(tmp_path: Path):
+    lib_dir = tmp_path / "addurl-disabled"
     client = _client_for_library(lib_dir)
 
     bib_content = (
@@ -1221,181 +1201,30 @@ def test_add_route_post_pdf_url_success(tmp_path: Path):
         "}\n"
     )
 
-    fake_pdf = b"%PDF-1.4 fake content"
-    fake_resp = _FakeHTTPResponse(fake_pdf)
-
-    public_addr = [(socket.AF_INET, None, None, "", ("93.184.216.34", 0))]
-    with patch("socket.getaddrinfo", return_value=public_addr):
-        with patch("urllib.request.urlopen", return_value=fake_resp):
-            response = client.post(
-                "/add",
-                data={
-                    "bib_text": bib_content,
-                    "pdf_url": "https://example.com/paper.pdf",
-                },
-                follow_redirects=True,
-            )
-
-    html = response.get_data(as_text=True)
-    assert response.status_code == 200
-    assert "URL Download Test" in html or "urltest2025paper" in html
-
-
-def test_add_route_post_pdf_url_download_error(tmp_path: Path):
-    """URLError during PDF download flashes an error (lines 622-624)."""
-    import urllib.error
-
-    lib_dir = tmp_path / "addurlerr"
-    client = _client_for_library(lib_dir)
-
-    bib_content = (
-        "@article{urlerr2025paper,\n"
-        "  title  = {URL Error Test},\n"
-        "  author = {Author, A},\n"
-        "  year   = {2025},\n"
-        "}\n"
+    response = client.post(
+        "/add",
+        data={"bib_text": bib_content, "pdf_url": "https://example.com/paper.pdf"},
+        follow_redirects=True,
     )
-
-    public_addr = [(socket.AF_INET, None, None, "", ("93.184.216.34", 0))]
-    with patch("socket.getaddrinfo", return_value=public_addr):
-        with patch(
-            "urllib.request.urlopen",
-            side_effect=urllib.error.URLError("connection refused"),
-        ):
-            response = client.post(
-                "/add",
-                data={
-                    "bib_text": bib_content,
-                    "pdf_url": "https://example.com/paper.pdf",
-                },
-                follow_redirects=True,
-            )
-
     html = response.get_data(as_text=True)
+
     assert response.status_code == 200
-    assert "Failed to download" in html
+    assert "importing PDFs from URLs is disabled" in html
 
 
-def test_add_pdf_route_post_pdf_url_success(tmp_path: Path):
-    """Providing a valid public PDF URL to add_pdf downloads and stores the PDF (lines 678-698)."""
+def test_add_pdf_route_post_pdf_url_is_disabled(tmp_path: Path):
     lib_dir, key = _seed_library_no_pdf(tmp_path)
     client = _client_for_library(lib_dir)
 
-    fake_pdf = b"%PDF-1.4 content"
-    fake_resp = _FakeHTTPResponse(fake_pdf)
-
-    public_addr = [(socket.AF_INET, None, None, "", ("93.184.216.34", 0))]
-    with patch("socket.getaddrinfo", return_value=public_addr):
-        with patch("urllib.request.urlopen", return_value=fake_resp):
-            response = client.post(
-                f"/paper/{key}/add_pdf",
-                data={"pdf_url": "https://example.com/paper.pdf"},
-                follow_redirects=True,
-            )
-
-    html = response.get_data(as_text=True)
-    assert response.status_code == 200
-    assert "PDF added successfully" in html
-
-
-def test_add_pdf_route_post_pdf_url_download_error(tmp_path: Path):
-    """URLError during PDF URL download in add_pdf flashes error (lines 696-698)."""
-    import urllib.error
-
-    lib_dir, key = _seed_library_no_pdf(tmp_path)
-    client = _client_for_library(lib_dir)
-
-    public_addr = [(socket.AF_INET, None, None, "", ("93.184.216.34", 0))]
-    with patch("socket.getaddrinfo", return_value=public_addr):
-        with patch(
-            "urllib.request.urlopen",
-            side_effect=urllib.error.URLError("timed out"),
-        ):
-            response = client.post(
-                f"/paper/{key}/add_pdf",
-                data={"pdf_url": "https://example.com/paper.pdf"},
-                follow_redirects=True,
-            )
-
-    html = response.get_data(as_text=True)
-    assert response.status_code == 200
-    assert "Failed to download" in html
-
-
-# ---------------------------------------------------------------------------
-# PDF too large – /add and /paper/<key>/add_pdf (lines 614-619, 688-693)
-# ---------------------------------------------------------------------------
-
-
-class _OversizeFakeHTTPResponse:
-    """Fake HTTP response that returns chunks until the 50 MB limit is exceeded."""
-
-    def __init__(self, chunk_size: int = 64 * 1024):
-        self._chunk = b"X" * chunk_size
-
-    def read(self, size: int) -> bytes:
-        return self._chunk[:size]
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *args):
-        pass
-
-
-def test_add_route_post_pdf_url_too_large(tmp_path: Path):
-    """PDF download exceeding 50 MB limit flashes an error (lines 614-619)."""
-    lib_dir = tmp_path / "addurlbig"
-    client = _client_for_library(lib_dir)
-
-    bib_content = (
-        "@article{bigpdf2025paper,\n"
-        "  title  = {Big PDF Test},\n"
-        "  author = {Author, A},\n"
-        "  year   = {2025},\n"
-        "}\n"
+    response = client.post(
+        f"/paper/{key}/add_pdf",
+        data={"pdf_url": "https://example.com/paper.pdf"},
+        follow_redirects=True,
     )
-
-    public_addr = [(socket.AF_INET, None, None, "", ("93.184.216.34", 0))]
-    with patch("socket.getaddrinfo", return_value=public_addr):
-        with patch(
-            "urllib.request.urlopen",
-            return_value=_OversizeFakeHTTPResponse(),
-        ):
-            response = client.post(
-                "/add",
-                data={
-                    "bib_text": bib_content,
-                    "pdf_url": "https://example.com/huge.pdf",
-                },
-                follow_redirects=True,
-            )
-
     html = response.get_data(as_text=True)
+
     assert response.status_code == 200
-    assert "50 MB" in html or "maximum" in html.lower()
-
-
-def test_add_pdf_route_post_pdf_url_too_large(tmp_path: Path):
-    """PDF download exceeding 50 MB limit flashes an error for add_pdf (lines 688-693)."""
-    lib_dir, key = _seed_library_no_pdf(tmp_path)
-    client = _client_for_library(lib_dir)
-
-    public_addr = [(socket.AF_INET, None, None, "", ("93.184.216.34", 0))]
-    with patch("socket.getaddrinfo", return_value=public_addr):
-        with patch(
-            "urllib.request.urlopen",
-            return_value=_OversizeFakeHTTPResponse(),
-        ):
-            response = client.post(
-                f"/paper/{key}/add_pdf",
-                data={"pdf_url": "https://example.com/huge.pdf"},
-                follow_redirects=True,
-            )
-
-    html = response.get_data(as_text=True)
-    assert response.status_code == 200
-    assert "50 MB" in html or "maximum" in html.lower()
+    assert "importing PDFs from URLs is disabled" in html
 
 
 # ---------------------------------------------------------------------------
