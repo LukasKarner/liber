@@ -436,6 +436,62 @@ def test_paper_detail_renders_markdown_notes(tmp_path: Path):
     assert "# My Heading" not in html
 
 
+def test_paper_detail_sanitizes_markdown_html(tmp_path: Path):
+    lib_dir = _seed_library(tmp_path)
+    lib = Library(lib_dir)
+    key = lib.list_papers()[0].citation_key
+    lib.notes_path(key).write_text(
+        "<script>alert('xss')</script>\n\n[click](javascript:alert(1))",
+        encoding="utf-8",
+    )
+    client = _client_for_library(lib_dir)
+
+    response = client.get(f"/paper/{key}")
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "<script>" not in html
+    assert 'href="javascript:alert(1)"' not in html
+
+
+def test_add_rejects_pdf_url_for_security(tmp_path: Path):
+    lib_dir = tmp_path / "addlib-url-disabled"
+    client = _client_for_library(lib_dir)
+
+    bib_content = (
+        "@article{test2024paper,\n"
+        "  title  = {Test Paper},\n"
+        "  author = {Tester, A},\n"
+        "  year   = {2024},\n"
+        "}\n"
+    )
+
+    response = client.post(
+        "/add",
+        data={"bib_text": bib_content, "pdf_url": "https://example.com/paper.pdf"},
+        follow_redirects=True,
+    )
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "importing PDFs from URLs is disabled" in html
+
+
+def test_add_pdf_rejects_pdf_url_for_security(tmp_path: Path):
+    lib_dir, key = _seed_library_no_pdf(tmp_path)
+    client = _client_for_library(lib_dir)
+
+    response = client.post(
+        f"/paper/{key}/add_pdf",
+        data={"pdf_url": "https://example.com/paper.pdf"},
+        follow_redirects=True,
+    )
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "importing PDFs from URLs is disabled" in html
+
+
 # ---------------------------------------------------------------------------
 # _is_safe_url – SSRF mitigation helper
 # ---------------------------------------------------------------------------

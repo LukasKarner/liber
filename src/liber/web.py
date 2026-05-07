@@ -8,7 +8,8 @@ import socket
 import tempfile
 import urllib.error
 import urllib.parse
-import urllib.request
+from html import escape as _escape_html
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Optional
 
@@ -33,6 +34,69 @@ _LIBER_DIR_ENV = "LIBER_DIR"
 
 _PDF_DOWNLOAD_MAX_BYTES = 50 * 1024 * 1024  # 50 MB
 _PDF_DOWNLOAD_CHUNK_SIZE = 64 * 1024  # 64 KB
+
+
+_ALLOWED_MARKDOWN_TAGS = {
+    "p", "br", "em", "strong", "code", "pre", "ul", "ol", "li",
+    "blockquote", "h1", "h2", "h3", "h4", "h5", "h6",
+    "table", "thead", "tbody", "tr", "th", "td", "a",
+}
+
+
+def _is_safe_href(value: str) -> bool:
+    parsed = urllib.parse.urlparse(value)
+    if parsed.scheme and parsed.scheme.lower() not in {"http", "https", "mailto"}:
+        return False
+    return True
+
+
+class _MarkdownHtmlSanitizer(HTMLParser):
+    """Allow-list sanitizer for markdown-produced HTML."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=False)
+        self._parts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, Optional[str]]]) -> None:
+        if tag not in _ALLOWED_MARKDOWN_TAGS:
+            return
+        safe_attrs: list[str] = []
+        if tag == "a":
+            for attr, value in attrs:
+                if attr not in {"href", "title"} or value is None:
+                    continue
+                if attr == "href" and not _is_safe_href(value):
+                    continue
+                safe_attrs.append(f'{attr}="{_escape_html(value, quote=True)}"')
+            if not any(attr.startswith("href=") for attr in safe_attrs):
+                self._parts.append("<a>")
+                return
+        attr_text = f" {' '.join(safe_attrs)}" if safe_attrs else ""
+        self._parts.append(f"<{tag}{attr_text}>")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in _ALLOWED_MARKDOWN_TAGS:
+            self._parts.append(f"</{tag}>")
+
+    def handle_data(self, data: str) -> None:
+        self._parts.append(_escape_html(data))
+
+    def handle_entityref(self, name: str) -> None:
+        self._parts.append(f"&{name};")
+
+    def handle_charref(self, name: str) -> None:
+        self._parts.append(f"&#{name};")
+
+    def get_html(self) -> str:
+        return "".join(self._parts)
+
+
+def _render_safe_markdown(markdown_text: str) -> str:
+    html = _markdown.markdown(markdown_text, extensions=["fenced_code", "tables"])
+    sanitizer = _MarkdownHtmlSanitizer()
+    sanitizer.feed(html)
+    sanitizer.close()
+    return sanitizer.get_html()
 
 
 def _is_safe_url(url: str) -> bool:
@@ -349,7 +413,7 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
         notes_path = lib.notes_path(citation_key)
         notes_content = notes_path.read_text(encoding="utf-8") if notes_path.exists() else None
         if notes_content is not None:
-            notes_html = _markdown.markdown(notes_content, extensions=["fenced_code", "tables"])
+            notes_html = _render_safe_markdown(notes_content)
         else:
             notes_html = None
 
@@ -594,34 +658,12 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
                 if has_pdf_file:
                     pdf_file.save(str(pdf_path))
                 else:
-                    # Validate and download from URL
-                    if not _is_safe_url(pdf_url):
-                        flash(
-                            "PDF URL must use http or https and point to a public host.",
-                            "error",
-                        )
-                        return render_template("add.html")
-                    try:
-                        with urllib.request.urlopen(pdf_url, timeout=30) as resp:  # noqa: S310
-                            chunks: list[bytes] = []
-                            total = 0
-                            while True:
-                                chunk = resp.read(_PDF_DOWNLOAD_CHUNK_SIZE)
-                                if not chunk:
-                                    break
-                                total += len(chunk)
-                                if total > _PDF_DOWNLOAD_MAX_BYTES:
-                                    flash(
-                                        "The PDF at the provided URL exceeds the"
-                                        " maximum allowed size (50 MB).",
-                                        "error",
-                                    )
-                                    return render_template("add.html")
-                                chunks.append(chunk)
-                        pdf_path.write_bytes(b"".join(chunks))
-                    except urllib.error.URLError as exc:
-                        flash(f"Failed to download PDF: {exc}", "error")
-                        return render_template("add.html")
+                    flash(
+                        "For security reasons, importing PDFs from URLs is disabled. "
+                        "Please download the PDF and upload the file.",
+                        "error",
+                    )
+                    return render_template("add.html")
 
                 # Basic content validation: PDFs must start with the %PDF magic bytes
                 with pdf_path.open("rb") as fh:
@@ -669,33 +711,12 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
             if has_pdf_file:
                 pdf_file.save(str(pdf_path))
             else:
-                if not _is_safe_url(pdf_url):
-                    flash(
-                        "PDF URL must use http or https and point to a public host.",
-                        "error",
-                    )
-                    return render_template("add_pdf.html", paper=paper)
-                try:
-                    with urllib.request.urlopen(pdf_url, timeout=30) as resp:  # noqa: S310
-                        chunks: list[bytes] = []
-                        total = 0
-                        while True:
-                            chunk = resp.read(_PDF_DOWNLOAD_CHUNK_SIZE)
-                            if not chunk:
-                                break
-                            total += len(chunk)
-                            if total > _PDF_DOWNLOAD_MAX_BYTES:
-                                flash(
-                                    "The PDF at the provided URL exceeds the"
-                                    " maximum allowed size (50 MB).",
-                                    "error",
-                                )
-                                return render_template("add_pdf.html", paper=paper)
-                            chunks.append(chunk)
-                    pdf_path.write_bytes(b"".join(chunks))
-                except urllib.error.URLError as exc:
-                    flash(f"Failed to download PDF: {exc}", "error")
-                    return render_template("add_pdf.html", paper=paper)
+                flash(
+                    "For security reasons, importing PDFs from URLs is disabled. "
+                    "Please download the PDF and upload it directly.",
+                    "error",
+                )
+                return render_template("add_pdf.html", paper=paper)
 
             with pdf_path.open("rb") as fh:
                 header = fh.read(4)
