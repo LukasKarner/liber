@@ -8,6 +8,7 @@ import socket
 import tempfile
 import urllib.error
 import urllib.parse
+import urllib.request
 from html import escape as _escape_html
 from html.parser import HTMLParser
 from pathlib import Path
@@ -137,6 +138,38 @@ def _is_safe_url(url: str) -> bool:
         ):
             return False
     return True
+
+
+def _download_pdf_from_url(pdf_url: str, pdf_path: Path) -> Optional[str]:
+    """Download a PDF from *pdf_url* into *pdf_path* or return an error message."""
+    if not _is_safe_url(pdf_url):
+        return "PDF URL must use http or https and point to a public host."
+
+    try:
+        with urllib.request.urlopen(pdf_url, timeout=30) as resp:  # noqa: S310
+            geturl = getattr(resp, "geturl", None)
+            final_url = geturl() if callable(geturl) else None
+            if final_url and not _is_safe_url(final_url):
+                return "PDF URL must use http or https and point to a public host."
+
+            chunks: list[bytes] = []
+            total = 0
+            while True:
+                chunk = resp.read(_PDF_DOWNLOAD_CHUNK_SIZE)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > _PDF_DOWNLOAD_MAX_BYTES:
+                    return (
+                        "The PDF at the provided URL exceeds the"
+                        " maximum allowed size (50 MB)."
+                    )
+                chunks.append(chunk)
+        pdf_path.write_bytes(b"".join(chunks))
+    except urllib.error.URLError:
+        return "Failed to download PDF."
+
+    return None
 
 
 def create_app(library_dir: Optional[Path] = None) -> Flask:
@@ -658,12 +691,10 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
                 if has_pdf_file:
                     pdf_file.save(str(pdf_path))
                 else:
-                    flash(
-                        "For security reasons, importing PDFs from URLs is disabled. "
-                        "Please download the PDF and upload the file.",
-                        "error",
-                    )
-                    return render_template("add.html")
+                    error = _download_pdf_from_url(pdf_url, pdf_path)
+                    if error is not None:
+                        flash(error, "error")
+                        return render_template("add.html")
 
                 # Basic content validation: PDFs must start with the %PDF magic bytes
                 with pdf_path.open("rb") as fh:
@@ -711,12 +742,10 @@ def create_app(library_dir: Optional[Path] = None) -> Flask:
             if has_pdf_file:
                 pdf_file.save(str(pdf_path))
             else:
-                flash(
-                    "For security reasons, importing PDFs from URLs is disabled. "
-                    "Please download the PDF and upload it directly.",
-                    "error",
-                )
-                return render_template("add_pdf.html", paper=paper)
+                error = _download_pdf_from_url(pdf_url, pdf_path)
+                if error is not None:
+                    flash(error, "error")
+                    return render_template("add_pdf.html", paper=paper)
 
             with pdf_path.open("rb") as fh:
                 header = fh.read(4)
