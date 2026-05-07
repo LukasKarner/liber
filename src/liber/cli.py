@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import tempfile
@@ -18,6 +19,25 @@ from liber.library import Library, make_citation_key
 
 _DEFAULT_LIBRARY_DIR = Path.home() / "liber"
 _LIBER_DIR_ENV = "LIBER_DIR"
+_CONFIG_FILE = Path.home() / ".config" / "liber" / "config.json"
+
+
+def _read_saved_library_dir() -> Optional[Path]:
+    """Return the library directory saved by a previous ``init``, or *None*."""
+    try:
+        data = json.loads(_CONFIG_FILE.read_text(encoding="utf-8"))
+        return Path(data["library_dir"])
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _save_library_dir(path: Path) -> None:
+    """Persist *path* as the active library directory."""
+    _CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _CONFIG_FILE.write_text(
+        json.dumps({"library_dir": str(path)}, indent=2),
+        encoding="utf-8",
+    )
 
 
 def _get_library(ctx: click.Context) -> Library:
@@ -35,9 +55,13 @@ def _get_library(ctx: click.Context) -> Library:
     "--library-dir",
     "-d",
     envvar=_LIBER_DIR_ENV,
-    default=str(_DEFAULT_LIBRARY_DIR),
-    show_default=True,
-    help="Path to the library directory.",
+    default=None,
+    show_default=False,
+    help=(
+        "Path to the library directory. "
+        "Defaults to the directory saved by the last 'init', "
+        f"or '{_DEFAULT_LIBRARY_DIR}' if none was saved."
+    ),
     type=click.Path(),
 )
 @click.pass_context
@@ -48,10 +72,17 @@ def cli(ctx: click.Context, library_dir: str) -> None:
     containing a PDF, a BibTeX file, and optional Markdown notes.
 
     The library directory can be set with the --library-dir option or the
-    LIBER_DIR environment variable.
+    LIBER_DIR environment variable.  When neither is provided liber uses the
+    directory saved during the last ``init`` run, falling back to the default
+    of ~/liber.
     """
     ctx.ensure_object(dict)
-    ctx.obj["library_dir"] = Path(library_dir)
+    if library_dir is None:
+        saved = _read_saved_library_dir()
+        resolved = saved if saved is not None else _DEFAULT_LIBRARY_DIR
+    else:
+        resolved = Path(library_dir)
+    ctx.obj["library_dir"] = resolved
 
 
 # ---------------------------------------------------------------------------
@@ -65,6 +96,7 @@ def init_cmd(ctx: click.Context) -> None:
     """Initialise a new library directory."""
     lib = _get_library(ctx)
     lib.init()
+    _save_library_dir(ctx.obj["library_dir"])
     click.echo(f"Library initialised at: {lib.library_dir}")
 
 
