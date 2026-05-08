@@ -79,13 +79,6 @@ class TestInitCmd:
         assert "--library-dir" in result.output
 
 
-class TestAddCmdHelp:
-    def test_add_help_shows_library_dir_option(self, runner):
-        result = runner.invoke(cli, ["add", "--help"])
-        assert result.exit_code == 0
-        assert "--library-dir" in result.output
-
-
 # ---------------------------------------------------------------------------
 # config helpers
 # ---------------------------------------------------------------------------
@@ -127,6 +120,11 @@ class TestAddCmd:
         if extra:
             args += extra
         return runner.invoke(cli, args)
+
+    def test_add_help_shows_library_dir_option(self, runner):
+        result = runner.invoke(cli, ["add", "--help"])
+        assert result.exit_code == 0
+        assert "--library-dir" in result.output
 
     def test_add_exits_zero(self, runner, lib_dir, dummy_pdf, dummy_bib):
         result = self._add(runner, lib_dir, dummy_bib, dummy_pdf)
