@@ -22,6 +22,45 @@ _LIBER_DIR_ENV = "LIBER_DIR"
 _CONFIG_FILE = Path.home() / ".config" / "liber" / "config.json"
 
 
+class LiberCommand(click.Command):
+    """Custom command that documents global options in subcommand help."""
+
+    def format_options(
+        self,
+        ctx: click.Context,
+        formatter: click.HelpFormatter,
+    ) -> None:
+        super().format_options(ctx, formatter)
+
+        if ctx.parent is None:
+            return
+
+        local_option_names = {
+            param.name
+            for param in self.get_params(ctx)
+            if isinstance(param, click.Option)
+        }
+        global_records = []
+        for param in ctx.parent.command.get_params(ctx.parent):
+            if not isinstance(param, click.Option):
+                continue
+            if param.name in local_option_names:
+                continue
+            record = param.get_help_record(ctx.parent)
+            if record is not None:
+                global_records.append(record)
+
+        if global_records:
+            with formatter.section("Global Options"):
+                formatter.write_dl(global_records)
+
+
+class LiberGroup(click.Group):
+    """CLI group using LiberCommand for subcommands."""
+
+    command_class = LiberCommand
+
+
 def _read_saved_library_dir() -> Optional[Path]:
     """Return the library directory saved by a previous ``init``, or *None*."""
     try:
@@ -50,7 +89,7 @@ def _get_library(ctx: click.Context) -> Library:
 # ---------------------------------------------------------------------------
 
 
-@click.group()
+@click.group(cls=LiberGroup)
 @click.option(
     "--library-dir",
     "-d",

@@ -73,6 +73,11 @@ class TestInitCmd:
         data = json.loads(config_file.read_text())
         assert Path(data["library_dir"]) == lib_dir
 
+    def test_init_help_shows_library_dir_option(self, runner):
+        result = runner.invoke(cli, ["init", "--help"])
+        assert result.exit_code == 0
+        assert "--library-dir" in result.output
+
 
 # ---------------------------------------------------------------------------
 # config helpers
@@ -115,6 +120,11 @@ class TestAddCmd:
         if extra:
             args += extra
         return runner.invoke(cli, args)
+
+    def test_add_help_shows_library_dir_option(self, runner):
+        result = runner.invoke(cli, ["add", "--help"])
+        assert result.exit_code == 0
+        assert "--library-dir" in result.output
 
     def test_add_exits_zero(self, runner, lib_dir, dummy_pdf, dummy_bib):
         result = self._add(runner, lib_dir, dummy_bib, dummy_pdf)
@@ -711,5 +721,3 @@ class TestServeCmd:
         assert result.exit_code == 0
         assert received_dirs, "create_app was not called"
         assert received_dirs[0] == lib_dir
-
-
