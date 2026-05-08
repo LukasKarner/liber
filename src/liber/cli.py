@@ -130,9 +130,19 @@ def cli(ctx: click.Context, library_dir: str) -> None:
 
 
 @cli.command("init")
+@click.option(
+    "--library-dir",
+    "-d",
+    default=None,
+    type=click.Path(),
+    help="Path to the library directory to initialise.",
+)
 @click.pass_context
-def init_cmd(ctx: click.Context) -> None:
+def init_cmd(ctx: click.Context, library_dir: Optional[str]) -> None:
     """Initialise a new library directory."""
+    if library_dir is not None:
+        ctx.obj["library_dir"] = Path(library_dir)
+
     lib = _get_library(ctx)
     lib.init()
     _save_library_dir(ctx.obj["library_dir"])

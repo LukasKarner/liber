@@ -73,6 +73,15 @@ class TestInitCmd:
         data = json.loads(config_file.read_text())
         assert Path(data["library_dir"]) == lib_dir
 
+    def test_init_accepts_library_dir_after_subcommand(self, runner, lib_dir, monkeypatch, tmp_path):
+        config_file = tmp_path / "config.json"
+        monkeypatch.setattr("liber.cli._CONFIG_FILE", config_file)
+        result = runner.invoke(cli, ["init", "--library-dir", str(lib_dir)])
+        assert result.exit_code == 0
+        assert lib_dir.is_dir()
+        data = json.loads(config_file.read_text())
+        assert Path(data["library_dir"]) == lib_dir
+
     def test_init_help_shows_library_dir_option(self, runner):
         result = runner.invoke(cli, ["init", "--help"])
         assert result.exit_code == 0
