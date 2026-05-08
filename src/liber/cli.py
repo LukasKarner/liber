@@ -56,7 +56,7 @@ class LiberCommand(click.Command):
 
 
 class LiberGroup(click.Group):
-    """CLI group using :class:`LiberCommand` for subcommands."""
+    """CLI group using LiberCommand for subcommands."""
 
     command_class = LiberCommand
 
