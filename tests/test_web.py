@@ -708,6 +708,7 @@ def test_paper_edit_bibtex_post_valid(tmp_path: Path):
     lib_dir = _seed_library(tmp_path)
     lib = Library(lib_dir)
     key = lib.list_papers()[0].citation_key
+    lib.add_paper_tag(key, "ml")
     client = _client_for_library(lib_dir)
 
     new_bib = (
@@ -727,6 +728,7 @@ def test_paper_edit_bibtex_post_valid(tmp_path: Path):
     assert response.status_code == 200
     assert "Updated" in html or "updated" in html
     assert lib.get(key).title == "Updated Via Web"
+    assert lib.get(key).tags == ["ml"]
 
 
 def test_paper_edit_bibtex_post_invalid(tmp_path: Path):

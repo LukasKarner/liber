@@ -494,6 +494,7 @@ class Library:
         )
 
         # Update index entry
+        old_tags = list(papers[idx].tags)
         paper = Paper(
             title=title,
             year=year,
@@ -501,6 +502,7 @@ class Library:
             keywords=keywords,
             doi=doi,
             citation_key=citation_key,
+            tags=old_tags,
         )
         papers[idx] = paper
         self._write_index(papers)
