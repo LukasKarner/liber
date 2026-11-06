@@ -509,6 +509,21 @@ class TestLibraryUpdateBibtex:
         with pytest.raises(ValueError):
             tmp_lib.update_bibtex(paper.citation_key, "not a bibtex entry at all")
 
+    def test_update_bibtex_preserves_tags(self, tmp_lib: Library, dummy_pdf: Path, dummy_bib: Path):
+        paper = tmp_lib.add(bib_path=dummy_bib, pdf_path=dummy_pdf)
+        tmp_lib.add_paper_tag(paper.citation_key, "ml")
+        new_bib = (
+            f"@article{{{paper.citation_key},\n"
+            "  title  = {Updated Title},\n"
+            "  author = {Doe, Jane},\n"
+            "  year   = {2024},\n"
+            "}\n"
+        )
+
+        updated = tmp_lib.update_bibtex(paper.citation_key, new_bib)
+
+        assert updated.tags == ["ml"]
+
 
 # ---------------------------------------------------------------------------
 # Library tag management
